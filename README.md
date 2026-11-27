@@ -1,6 +1,6 @@
-# IMS for Pixel+
+# ModernIMS
 
-> **The modern, rootless, per-SIM VoLTE, VoWiFi, Backup Calling (Cross-SIM), and 5G VoNR toolkit for Google Pixel devices — tested on Android 14–17.**
+> **Rootless Material You toolkit for Google Pixel (Android 10–17): per-SIM VoLTE, VoWiFi, working Backup Calling (Cross-SIM), 5G VoNR, smart presets, and APN diagnostics.**
 
 [![Platform](https://img.shields.io/badge/Platform-Android%2010--17-10B981.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-28%2B-38BDF8.svg)](https://developer.android.com)
@@ -9,11 +9,11 @@
 
 ---
 
-## Why IMS for Pixel+?
+## Why ModernIMS?
 
-Forked and substantially re-engineered from [`svenuks/ImsForPixel`](https://github.com/svenuks/ImsForPixel), **IMS for Pixel+** solves the real-world dual-SIM and Android 14–17 regressions that break older tools like classic Pixel IMS and unpatched forks:
+Forked and substantially re-engineered from [`svenuks/ImsForPixel`](https://github.com/svenuks/ImsForPixel), **ModernIMS** solves the real-world dual-SIM and Android 14–17 regressions that break older tools like classic Pixel IMS and unpatched forks:
 
-| Capability | Classic Pixel IMS | Original `ImsForPixel` | **IMS for Pixel+** |
+| Capability | Classic Pixel IMS | Original `ImsForPixel` | **ModernIMS** |
 |---|---|---|---|
 | **Root / Shizuku Required** | ⚠️ Requires Shizuku | ❌ Standalone | ❌ **Standalone (Zero external apps)** |
 | **Per-SIM Isolation** | ⚠️ Manual per-SIM | ❌ Overwrites & resets **both** SIMs | ✅ **True Per-SIM Master Switch & Non-Destructive Overrides** |
@@ -37,8 +37,8 @@ If you run a dual-SIM setup where **SIM 1** needs overrides (e.g., roaming SIM i
 
 ### 2. Real Backup Calling (Cross-SIM IMS) on Android 14–17
 On modern Pixel phones (Pixel 7 / 8 / 9 / 10 series), Google hid the Backup Calling toggle in Settings and `CarrierConfigManager` alone is not enough:
-- **IMS for Pixel+** sets both `carrier_cross_sim_ims_available_bool` + `enable_cross_sim_calling_on_opportunistic_data_bool` **and** invokes `ImsMmTelManager.setCrossSimCallingEnabled(true)` under shell permission identity.
-- **Built-in APN Health Inspector:** If a non-IMS APN (such as `apn=internet` with `type=default,supl,ims`) hijacks IMS setup over cellular data, the ePDG rejects IKEv2 auth (`ERR 24`, 2-hour backoff). IMS for Pixel+ automatically detects this conflict and provides a **1-tap Fix APN** action.
+- **ModernIMS** sets both `carrier_cross_sim_ims_available_bool` + `enable_cross_sim_calling_on_opportunistic_data_bool` **and** invokes `ImsMmTelManager.setCrossSimCallingEnabled(true)` under shell permission identity.
+- **Built-in APN Health Inspector:** If a non-IMS APN (such as `apn=internet` with `type=default,supl,ims`) hijacks IMS setup over cellular data, the ePDG rejects IKEv2 auth (`ERR 24`, 2-hour backoff). ModernIMS automatically detects this conflict and provides a **1-tap Fix APN** action.
 
 ### 3. Smart Presets & Expanded Android 17 Controls
 - **1-Tap Presets:** `Travel & Backup`, `Unsupported Full`, `VoLTE + VoNR`, `Minimal VoLTE`.
@@ -48,7 +48,7 @@ On modern Pixel phones (Pixel 7 / 8 / 9 / 10 series), Google hid the Backup Call
 
 ### 4. Live Diagnostics & Synchronous Execution
 - **Home:** Compact Wireless ADB status pill, Dual-SIM hero cards showing live transport (`VoWiFi (IWLAN)`, `Backup Calling`, `VoLTE`, `5G VoNR`), APN conflict alerts, batch controls, and 1-tap system shortcuts (`SIM & Network`, `Phone Info`, `Wireless Debugging`, `Wi-Fi`).
-- **Diagnostics:** Per-SIM SubID, MCC/MNC, active `CarrierConfig` bundle version, override count, live `ImsRegistrationAttributes` transport, last instrumentation log, and **Copy Diagnostic Report** (privacy-safe Markdown).
+- **Diagnostics:** Per-SIM SubID, MCC/MNC, active `CarrierConfig` bundle version, override count, live `ImsRegistrationAttributes` transport, last instrumentation log, and **Copy Report** (privacy-safe Markdown).
 - **Reboot Reminder:** Optional notification after reboot reminding you to re-apply ephemeral overrides.
 
 ---
@@ -74,7 +74,7 @@ On modern Pixel phones (Pixel 7 / 8 / 9 / 10 series), Google hid the Backup Call
 ## Quick Start
 
 1. **Enable Wireless Debugging:** Go to **Settings → System → Developer options** and turn **Wireless debugging** ON (requires Wi-Fi).
-2. **Pair Once:** In **IMS for Pixel+ → Home**, expand the Wireless ADB banner, tap **Open Wireless Debugging**, tap **Pair device with pairing code**, and enter the 6-digit code in the notification reply action.
+2. **Pair Once:** In **ModernIMS → Home**, expand the Wireless ADB banner, tap **Open Wireless Debugging**, tap **Pair device with pairing code**, and enter the 6-digit code in the notification reply action.
 3. **Configure Your SIM(s):** Switch to the **Configure** tab, select your SIM, enable **Override Carrier Config** (or pick a **Smart Preset**), and tap **Apply**.
 4. **Verify Live Status:** Check the **Home** or **Diagnostics** tab — you should see `IMS: VoWiFi (IWLAN)` or `IMS: Backup Calling` when Wi-Fi is off and secondary SIM data is active.
 
@@ -89,8 +89,8 @@ On modern Pixel phones (Pixel 7 / 8 / 9 / 10 series), Google hid the Backup Call
 ## Building from Source
 
 ```bash
-git clone https://github.com/bipinsubedi/ImsForPixel.git
-cd ImsForPixel
+git clone https://github.com/bipinsubedi/ModernIMS.git
+cd ModernIMS
 
 # JDK 17 and Android SDK (compileSdk 36) required
 ./gradlew assembleDebug    # app/build/outputs/apk/debug/app-debug.apk

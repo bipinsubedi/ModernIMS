@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IMS for Pixel+</string>
-    <string name="app_subtitle">Per-SIM Rootless VoLTE / VoWiFi / Backup Calling / VoNR</string>
+    <string name="app_name">ModernIMS</string>
+    <string name="app_subtitle">Rootless per-SIM VoLTE, VoWiFi, Backup Calling &amp; 5G VoNR</string>
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>
@@ -20,7 +20,7 @@
     <string name="notification_config_cleared">Carrier config overrides cleared; native carrier defaults restored</string>
 
     <string name="notification_channel_boot">Reboot Reminder</string>
-    <string name="notification_boot_title">IMS for Pixel+ · Re-apply needed</string>
+    <string name="notification_boot_title">ModernIMS · Re-apply needed</string>
     <string name="notification_boot_body">Android cleared temporary IMS overrides on reboot. Tap to re-apply.</string>
 
     <string name="notification_permission_required">Notification permission required to enter pairing code from notification shade</string>

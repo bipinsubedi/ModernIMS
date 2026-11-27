@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IMS for Pixel+</string>
+    <string name="app_name">ModernIMS</string>
     <string name="app_subtitle">Настройка VoLTE / VoWiFi / Backup Calling / VoNR без Root</string>
 
     <string name="nav_home">Главная</string>

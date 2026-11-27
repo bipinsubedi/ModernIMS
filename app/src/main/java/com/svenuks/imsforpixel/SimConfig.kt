@@ -84,9 +84,13 @@ object SimConfigStore {
         if (prefs.getBoolean(INITIALIZED_KEY, false)) return
         val editor = prefs.edit()
         for (slot in 0..1) {
-            saveSimConfig(editor, slot, SimOverrideConfig())
+            if (!prefs.contains("override_enabled_slot_$slot")) {
+                saveSimConfig(editor, slot, SimOverrideConfig())
+            }
         }
-        editor.putBoolean(BOOT_REMINDER_KEY, true)
+        if (!prefs.contains(BOOT_REMINDER_KEY)) {
+            editor.putBoolean(BOOT_REMINDER_KEY, true)
+        }
         editor.putBoolean(INITIALIZED_KEY, true)
         editor.apply()
     }
@@ -404,7 +408,7 @@ object SimConfigStore {
     fun buildDiagnosticReport(context: Context, s0: SimLiveStatus, s1: SimLiveStatus): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return buildString {
-            appendLine("# IMS for Pixel+ Diagnostic Report")
+            appendLine("# ModernIMS Diagnostic Report")
             appendLine("- Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, SDK ${Build.VERSION.SDK_INT})")
             appendLine("- App Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             appendLine()

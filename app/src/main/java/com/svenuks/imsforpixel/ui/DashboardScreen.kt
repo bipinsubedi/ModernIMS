@@ -15,7 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
@@ -216,7 +216,7 @@ fun DashboardScreen(
                     }
                     ShortcutTile(
                         title = stringResource(R.string.shortcut_wifi_settings),
-                        icon = Icons.Default.ArrowForward,
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
                         modifier = Modifier.weight(1f)
                     ) {
                         openIntentSafely(context, Intent(Settings.ACTION_WIFI_SETTINGS), Intent(Settings.ACTION_SETTINGS))
