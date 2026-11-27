@@ -67,6 +67,7 @@ fun DashboardScreen(
     onFixApnSlot: (Int) -> Unit,
     onApplyAllEnabled: () -> Unit,
     onRestoreAll: () -> Unit,
+    onRestartIms: () -> Unit,
     onRefreshStatus: () -> Unit
 ) {
     val context = LocalContext.current
@@ -167,6 +168,13 @@ fun DashboardScreen(
                         tint = StatusRed,
                         enabled = !isApplying,
                         onClick = onRestoreAll
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.btn_restart_ims),
+                        icon = Icons.Default.Refresh,
+                        tint = StatusBlue,
+                        enabled = !isApplying,
+                        onClick = onRestartIms
                     )
                     ActionChipTile(
                         label = stringResource(R.string.btn_refresh_status),

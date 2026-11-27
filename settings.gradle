@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TensorIMS"
+rootProject.name = "ModernIMS"
 include ':app'

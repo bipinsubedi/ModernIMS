@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TensorIMS</string>
+    <string name="app_name">ModernIMS</string>
     <string name="app_subtitle">Rootless per-SIM VoLTE, VoWiFi, Backup Calling &amp; 5G VoNR</string>
 
     <!-- Navigation -->
@@ -10,7 +10,7 @@
 
     <!-- Dynamic Launcher Shortcuts -->
     <string name="shortcut_quick_reapply_short">Quick Re-apply</string>
-    <string name="shortcut_quick_reapply_long">Re-apply saved TensorIMS overrides</string>
+    <string name="shortcut_quick_reapply_long">Re-apply saved ModernIMS overrides</string>
     <string name="shortcut_diag_long">Open IMS &amp; Backup Calling diagnostics</string>
 
     <!-- Quick Settings Tile -->
@@ -20,11 +20,11 @@
 
     <!-- Auto-Apply Foreground Service -->
     <string name="notification_channel_auto_apply">Auto-Apply Watcher</string>
-    <string name="auto_apply_watching_title">TensorIMS · Waiting for Wireless Debugging</string>
+    <string name="auto_apply_watching_title">ModernIMS · Waiting for Wireless Debugging</string>
     <string name="auto_apply_watching_body">Toggle Wireless Debugging ON — overrides will apply automatically.</string>
-    <string name="auto_apply_timeout_title">TensorIMS · Auto-Apply timed out</string>
-    <string name="auto_apply_timeout_body">Wireless Debugging was not enabled within 90 seconds. Tap to open TensorIMS.</string>
-    <string name="auto_apply_no_sim_title">TensorIMS · No SIM override enabled</string>
+    <string name="auto_apply_timeout_title">ModernIMS · Auto-Apply timed out</string>
+    <string name="auto_apply_timeout_body">Wireless Debugging was not enabled within 90 seconds. Tap to open ModernIMS.</string>
+    <string name="auto_apply_no_sim_title">ModernIMS · No SIM override enabled</string>
     <string name="auto_apply_no_sim_body">Open Configure and enable Override Carrier Config on a SIM first.</string>
 
     <!-- Notification Strings -->
@@ -39,7 +39,7 @@
     <string name="notification_config_cleared">Carrier config overrides cleared; native carrier defaults restored</string>
 
     <string name="notification_channel_boot">Reboot Reminder</string>
-    <string name="notification_boot_title">TensorIMS · Re-apply needed</string>
+    <string name="notification_boot_title">ModernIMS · Re-apply needed</string>
     <string name="notification_boot_body">Android cleared temporary IMS overrides on reboot. Use Quick Re-Apply or enable Wireless Debug.</string>
     <string name="notification_action_quick_reapply">Quick Re-Apply</string>
     <string name="notification_action_enable_debug">Auto-Apply Watcher</string>
@@ -72,6 +72,13 @@
     <string name="toast_shortcut_unavailable">System screen unavailable on this build</string>
     <string name="toast_watcher_started">Auto-Apply Watcher listening — turn Wireless Debugging ON</string>
     <string name="toast_auto_reapplying">Reboot detected — auto-reapplying saved overrides...</string>
+    <string name="toast_ims_restarted">IMS restarted and live status refreshed</string>
+    <string name="toast_my_preset_saved">Saved current config as My Preset</string>
+    <string name="toast_my_preset_cleared">Removed saved My Preset</string>
+    <string name="toast_persistent_enabled">Persistent VoLTE (VoIMS Opt-In) enabled</string>
+    <string name="toast_persistent_restored">Original VoLTE provisioning restored</string>
+    <string name="toast_captive_applied">Captive Portal probe URLs updated</string>
+    <string name="toast_captive_reset">Restored default Google Captive Portal URLs</string>
 
     <!-- Dashboard -->
     <string name="adb_banner_ready">Wireless ADB Ready · Port %1$s</string>
@@ -120,16 +127,36 @@
 
     <!-- Presets & Sections -->
     <string name="presets_title">1-Tap Smart Presets</string>
+    <string name="btn_save_my_preset">+ Save My Preset</string>
+    <string name="btn_update_my_preset">Update My Preset</string>
+    <string name="preset_my_saved">★ My Preset</string>
+    <string name="preset_my_saved_desc">Your custom saved profile</string>
     <string name="preset_travel_backup">Travel &amp; Backup</string>
     <string name="preset_travel_desc">VoLTE + VoWiFi + Backup Calling</string>
     <string name="preset_unsupported_full">Unsupported Full</string>
-    <string name="preset_full_desc">All IMS, 5G SA, VoNR &amp; LTE+</string>
+    <string name="preset_full_desc">All IMS, 5G+, VoNR &amp; LTE+</string>
     <string name="preset_volte_vonr">VoLTE + VoNR</string>
     <string name="preset_volte_vonr_desc">Cellular voice + 5G SA only</string>
+    <string name="preset_pure_lte">Pure LTE (Battery)</string>
+    <string name="preset_pure_lte_desc">VoLTE only · 5G NR disabled</string>
     <string name="preset_minimal_volte">Minimal VoLTE</string>
     <string name="preset_minimal_desc">VoLTE home &amp; roaming only</string>
     <string name="section_voice_5g">Voice &amp; 5G</string>
     <string name="section_wifi_backup">Wi-Fi &amp; Backup Calling</string>
+
+    <!-- 5G NR Mode & Tweaks -->
+    <string name="label_nr_mode">5G NR Radio Mode</string>
+    <string name="nr_mode_default">Default</string>
+    <string name="nr_mode_nsa_sa">NSA + SA</string>
+    <string name="nr_mode_sa">SA Only</string>
+    <string name="nr_mode_nsa">NSA Only</string>
+    <string name="nr_mode_off">Off (LTE)</string>
+    <string name="toggle_five_g_plus_title">Unlock 5G+ (NR Advanced) Icon</string>
+    <string name="toggle_five_g_plus_desc">Expose NR-CA / 5G+ status icon and PCO override on Tensor modems</string>
+    <string name="toggle_five_g_thresholds_title">Align 5G Signal Bars</string>
+    <string name="toggle_five_g_thresholds_desc">Use unified SS-RSRP thresholds (-128 to -98 dBm) for accurate 5G bars</string>
+    <string name="toggle_always_rat_title">Always Show Data RAT Icon</string>
+    <string name="toggle_always_rat_desc">Keep network type icon visible even when Wi-Fi or VoWiFi is connected</string>
 
     <!-- Master Per-SIM Override -->
     <string name="toggle_override_sim_title">Override Carrier Config for this SIM</string>
@@ -213,13 +240,23 @@
     <string name="toggle_auto_apply_launch_desc">Automatically re-apply overrides on app open if Wireless ADB is active</string>
     <string name="toggle_auto_disable_debug_title">Auto-Disable Wireless Debug After Apply</string>
     <string name="toggle_auto_disable_debug_desc">Turns off Wireless Debugging once applied (recommended for banking apps)</string>
-    <string name="diag_qs_tile_tip">💡 Tip: Add the TensorIMS Quick Settings Tile from your notification shade edit menu for 1-tap post-reboot re-apply.</string>
+    <string name="diag_qs_tile_tip">💡 Tip: Add the ModernIMS Quick Settings Tile from your notification shade edit menu for 1-tap post-reboot re-apply.</string>
+    <string name="diag_live_caps_title">Live IMS &amp; 5G Capabilities (*#*#4636#*#*)</string>
+    <string name="diag_persistent_volte_label">Persistent VoLTE (VoIMS Opt-In)</string>
+    <string name="diag_persistent_enable">Enable</string>
+    <string name="diag_persistent_restore">Restore Original</string>
+    <string name="diag_btn_restart_sim_ims">Restart IMS</string>
+    <string name="captive_title">Captive Portal Probe (Travel Wi-Fi Fix)</string>
+    <string name="captive_desc">Override Android network validation endpoints for restrictive networks</string>
+    <string name="captive_apply">Apply URLs</string>
+    <string name="captive_reset">Reset Default</string>
     <string name="diag_last_log_title">Last Instrumentation Log</string>
     <string name="diag_no_log">No instrumentation commands executed yet.</string>
 
     <!-- Wireless Debugging Card -->
     <string name="btn_open_wireless_debugging">Open Wireless Debugging</string>
     <string name="btn_activate">Apply Enabled</string>
+    <string name="btn_restart_ims">Restart IMS</string>
     <string name="btn_restore">Restore All</string>
     <string name="label_adb_port">Connection Port (ADB Port)</string>
 </resources>

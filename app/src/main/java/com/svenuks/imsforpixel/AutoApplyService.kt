@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AutoApplyService : Service() {
 
     companion object {
-        private const val TAG = "TensorImsAutoApply"
+        private const val TAG = "ModernImsAutoApply"
         private const val CHANNEL_ID = "auto_apply_channel"
         private const val NOTIF_ID = 205
         private const val TIMEOUT_MS = 90_000L

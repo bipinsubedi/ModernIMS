@@ -10,9 +10,11 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.provider.Telephony
 import android.telephony.AccessNetworkConstants
 import android.telephony.CarrierConfigManager
+import android.telephony.NetworkRegistrationInfo
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
@@ -24,6 +26,7 @@ import android.util.Log
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
 import java.lang.reflect.Method
+import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -33,11 +36,26 @@ class BrokerInstrumentation : Instrumentation() {
     companion object {
         private const val TAG = "VoLTEBrokerInst"
         private const val MOBILE_DATA_POLICY_AUTO_DATA_SWITCH = 3
-        private const val REGISTRATION_TECH_LTE = 0
-        private const val REGISTRATION_TECH_IWLAN = 1
-        private const val REGISTRATION_TECH_CROSS_SIM = 2
-        private const val REGISTRATION_TECH_NR = 3
+        private const val CAPABILITY_TYPE_VOICE = 1
+        private const val CAPABILITY_TYPE_VIDEO = 2
+        private const val CAPTIVE_HTTP_KEY = "captive_portal_http_url"
+        private const val CAPTIVE_HTTPS_KEY = "captive_portal_https_url"
         private val CARRIERS_URI: Uri = Telephony.Carriers.CONTENT_URI
+
+        private val REG_TECH_LTE: Int by lazy { readRegTechConst("REGISTRATION_TECH_LTE", 0) }
+        private val REG_TECH_IWLAN: Int by lazy { readRegTechConst("REGISTRATION_TECH_IWLAN", 1) }
+        private val REG_TECH_CROSS_SIM: Int by lazy { readRegTechConst("REGISTRATION_TECH_CROSS_SIM", 2) }
+        private val REG_TECH_NR: Int by lazy { readRegTechConst("REGISTRATION_TECH_NR", 3) }
+
+        private fun readRegTechConst(fieldName: String, fallback: Int): Int {
+            return try {
+                Class.forName("android.telephony.ims.stub.ImsRegistrationImplBase")
+                    .getField(fieldName)
+                    .getInt(null)
+            } catch (_: Exception) {
+                fallback
+            }
+        }
     }
 
     private data class SimTarget(
@@ -130,6 +148,14 @@ class BrokerInstrumentation : Instrumentation() {
                     when (action) {
                         "query" -> queryAllSlots()
                         "fix_apn" -> fixApnConflicts(targetSlot)
+                        "reset_ims" -> resetImsSlots(targetSlot)
+                        "persistent_volte_enable" -> setPersistentVolte(targetSlot, enable = true)
+                        "persistent_volte_restore" -> setPersistentVolte(targetSlot, enable = false)
+                        "captive_portal_write" -> writeCaptivePortalSettings(
+                            httpUrl = arguments?.getString("http_url"),
+                            httpsUrl = arguments?.getString("https_url")
+                        )
+                        "captive_portal_reset" -> writeCaptivePortalSettings(httpUrl = null, httpsUrl = null)
                         "clear" -> clearAndPoll(targetSlot)
                         else -> applyAndPoll(targetSlot)
                     }
@@ -314,16 +340,115 @@ class BrokerInstrumentation : Instrumentation() {
         pollStatuses(if (targetSlot >= 0) setOf(targetSlot) else emptySet(), isClear = false)
     }
 
+    private fun resetImsSlots(targetSlot: Int) {
+        val subManager = context.getSystemService(SubscriptionManager::class.java) ?: return
+        val telephonyManager = context.getSystemService(TelephonyManager::class.java) ?: return
+        val targets = resolveSimTargets(subManager)
+        val touchedSlots = mutableSetOf<Int>()
+        for (target in targets) {
+            if (targetSlot != -1 && target.slotIndex != targetSlot) continue
+            resetImsForSub(telephonyManager, target.subId, target.slotIndex)
+            touchedSlots.add(target.slotIndex)
+        }
+        pollStatuses(touchedSlots, isClear = false)
+    }
+
+    private fun setPersistentVolte(targetSlot: Int, enable: Boolean) {
+        val subManager = context.getSystemService(SubscriptionManager::class.java) ?: return
+        val telephonyManager = context.getSystemService(TelephonyManager::class.java) ?: return
+        val targets = resolveSimTargets(subManager)
+        for (target in targets) {
+            if (targetSlot != -1 && target.slotIndex != targetSlot) continue
+            val res = if (enable) {
+                PersistentVolteHelper.enable(context, target.subId)
+            } else {
+                PersistentVolteHelper.restore(context, target.subId)
+            }
+            if (res.isFailure) {
+                throw IllegalStateException(
+                    "Persistent VoLTE ${if (enable) "enable" else "restore"} failed for slot ${target.slotIndex}: ${res.exceptionOrNull()?.message}",
+                    res.exceptionOrNull()
+                )
+            }
+            resetImsForSub(telephonyManager, target.subId, target.slotIndex)
+        }
+        queryAllSlots()
+    }
+
+    private fun validateCaptivePortalUrl(raw: String, scheme: String): String {
+        val trimmed = raw.trim()
+        require(trimmed.isNotEmpty()) { "Captive portal $scheme URL cannot be empty" }
+        val uri = URI(trimmed)
+        require(uri.isAbsolute && uri.scheme.equals(scheme, ignoreCase = true) && !uri.host.isNullOrBlank()) {
+            "Invalid $scheme URL: $trimmed"
+        }
+        return trimmed
+    }
+
+    private fun writeCaptivePortalSettings(httpUrl: String?, httpsUrl: String?) {
+        val resolver = context.contentResolver
+        val originalHttp = Settings.Global.getString(resolver, CAPTIVE_HTTP_KEY)
+        val originalHttps = Settings.Global.getString(resolver, CAPTIVE_HTTPS_KEY)
+        val targetHttp = httpUrl?.let { validateCaptivePortalUrl(it, "http") }
+        val targetHttps = httpsUrl?.let { validateCaptivePortalUrl(it, "https") }
+
+        fun putOrDelete(key: String, value: String?) {
+            if (value == null) {
+                resolver.call(Settings.Global.CONTENT_URI, "DELETE_global", key, null)
+            } else {
+                check(Settings.Global.putString(resolver, key, value)) { "Failed writing $key" }
+            }
+        }
+
+        try {
+            putOrDelete(CAPTIVE_HTTP_KEY, targetHttp)
+            putOrDelete(CAPTIVE_HTTPS_KEY, targetHttps)
+            check(Settings.Global.getString(resolver, CAPTIVE_HTTP_KEY) == targetHttp) {
+                "Captive portal HTTP verification mismatch"
+            }
+            check(Settings.Global.getString(resolver, CAPTIVE_HTTPS_KEY) == targetHttps) {
+                "Captive portal HTTPS verification mismatch"
+            }
+            saveCaptivePortalSnapshot()
+        } catch (t: Throwable) {
+            try {
+                putOrDelete(CAPTIVE_HTTP_KEY, originalHttp)
+                putOrDelete(CAPTIVE_HTTPS_KEY, originalHttps)
+                saveCaptivePortalSnapshot()
+            } catch (rollback: Throwable) {
+                t.addSuppressed(rollback)
+            }
+            throw t
+        }
+    }
+
+    private fun saveCaptivePortalSnapshot() {
+        val resolver = context.contentResolver
+        val http = Settings.Global.getString(resolver, CAPTIVE_HTTP_KEY) ?: ""
+        val https = Settings.Global.getString(resolver, CAPTIVE_HTTPS_KEY) ?: ""
+        SimConfigStore.saveCaptivePortalState(
+            context,
+            CaptivePortalState(
+                httpUrl = http,
+                httpsUrl = https,
+                lastUpdatedEpochMs = System.currentTimeMillis()
+            )
+        )
+    }
+
     private fun queryAllSlots(): List<SimLiveStatus> {
         val subManager = context.getSystemService(SubscriptionManager::class.java) ?: return emptyList()
         val imsManager = context.getSystemService(ImsManager::class.java)
         val carrierConfigManager = context.getSystemService(CarrierConfigManager::class.java)
+        val telephonyManager = context.getSystemService(TelephonyManager::class.java)
         val targets = resolveSimTargets(subManager)
         val sharedPrefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
         val statuses = mutableListOf<SimLiveStatus>()
 
+        saveCaptivePortalSnapshot()
+
         for (target in targets) {
-            val status = querySingleSlotStatus(target, imsManager, carrierConfigManager, sharedPrefs)
+            val status = querySingleSlotStatus(target, imsManager, carrierConfigManager, telephonyManager, sharedPrefs)
             sharedPrefs.edit().putBoolean("ims_registered_slot_${target.slotIndex}", status.imsRegistered).commit()
             SimConfigStore.saveLiveStatus(context, status)
             statuses.add(status)
@@ -337,12 +462,19 @@ class BrokerInstrumentation : Instrumentation() {
         target: SimTarget,
         imsManager: ImsManager?,
         carrierConfigManager: CarrierConfigManager?,
+        telephonyManager: TelephonyManager?,
         sharedPrefs: android.content.SharedPreferences
     ): SimLiveStatus {
         var imsRegistered = false
         var imsTransport = "NONE"
         var crossSimEnabled = false
         var wfcEnabled = false
+        var capVolte = false
+        var capVowifi = false
+        var capVonr = false
+        var capVt = false
+        var capNrNsa = false
+        var capNrSa = false
 
         val mmTel = try {
             imsManager?.getImsMmTelManager(target.subId)
@@ -361,6 +493,18 @@ class BrokerInstrumentation : Instrumentation() {
                 wfcEnabled = mmTel.isVoWiFiSettingEnabled
             } catch (e: Exception) {
                 Log.w(TAG, "isVoWiFiSettingEnabled failed for subId=${target.subId}", e)
+            }
+
+            try {
+                val isAvail = findMethod(mmTel, "isAvailable", 2)
+                if (isAvail != null) {
+                    capVolte = (isAvail.invoke(mmTel, CAPABILITY_TYPE_VOICE, REG_TECH_LTE) as? Boolean) ?: false
+                    capVowifi = (isAvail.invoke(mmTel, CAPABILITY_TYPE_VOICE, REG_TECH_IWLAN) as? Boolean) ?: false
+                    capVonr = (isAvail.invoke(mmTel, CAPABILITY_TYPE_VOICE, REG_TECH_NR) as? Boolean) ?: false
+                    capVt = (isAvail.invoke(mmTel, CAPABILITY_TYPE_VIDEO, REG_TECH_LTE) as? Boolean) ?: false
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "MmTel isAvailable failed for subId=${target.subId}", e)
             }
 
             val latch = CountDownLatch(1)
@@ -412,6 +556,27 @@ class BrokerInstrumentation : Instrumentation() {
             }
         }
 
+        try {
+            val subTm = telephonyManager?.createForSubscriptionId(target.subId)
+            val ss = subTm?.serviceState
+            val nrRegInfo = ss?.networkRegistrationInfoList?.firstOrNull {
+                it.transportType == AccessNetworkConstants.TRANSPORT_TYPE_WWAN &&
+                    (it.domain and NetworkRegistrationInfo.DOMAIN_PS) != 0
+            }
+            if (nrRegInfo != null) {
+                val nrState = try {
+                    findMethod(nrRegInfo, "getNrState", 0)?.invoke(nrRegInfo) as? Int ?: NetworkRegistrationInfo.NR_STATE_NONE
+                } catch (_: Exception) {
+                    NetworkRegistrationInfo.NR_STATE_NONE
+                }
+                capNrNsa = nrState == NetworkRegistrationInfo.NR_STATE_CONNECTED ||
+                    nrState == NetworkRegistrationInfo.NR_STATE_NOT_RESTRICTED
+                capNrSa = nrRegInfo.accessNetworkTechnology == TelephonyManager.NETWORK_TYPE_NR
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "NR ServiceState check failed for subId=${target.subId}", e)
+        }
+
         val carrierConfigVersion = try {
             carrierConfigManager?.getConfigForSubId(target.subId)
                 ?.getString("carrier_config_version_string")
@@ -424,6 +589,7 @@ class BrokerInstrumentation : Instrumentation() {
         }
 
         val apnHealth = inspectApnHealth(target.mccMnc)
+        val persistentVolte = PersistentVolteHelper.query(context, target.subId)
         val configApplied = isConfigApplied(target.slotIndex)
         val overrideCount = if (configApplied) {
             SimConfigStore.buildCarrierConfigBundle(SimConfigStore.loadSimConfig(sharedPrefs, target.slotIndex)).keySet().size
@@ -446,6 +612,16 @@ class BrokerInstrumentation : Instrumentation() {
             overrideCount = overrideCount,
             apnConflictDetail = apnHealth.conflictDetail,
             apnImsPresent = apnHealth.apnImsPresent,
+            capVolte = capVolte,
+            capVowifi = capVowifi,
+            capVonr = capVonr,
+            capVt = capVt,
+            capNrNsa = capNrNsa,
+            capNrSa = capNrSa,
+            persistentVolteSupported = persistentVolte.supported,
+            persistentVolteOptIn = persistentVolte.optIn,
+            persistentVolteUserEnabled = persistentVolte.userEnabled,
+            persistentVolteCanRestore = persistentVolte.canRestore,
             lastUpdatedEpochMs = System.currentTimeMillis()
         )
     }
@@ -466,10 +642,10 @@ class BrokerInstrumentation : Instrumentation() {
             null
         }
         return when (tech) {
-            REGISTRATION_TECH_CROSS_SIM -> "CROSS_SIM"
-            REGISTRATION_TECH_IWLAN -> "IWLAN"
-            REGISTRATION_TECH_NR -> "NR"
-            REGISTRATION_TECH_LTE -> "LTE"
+            REG_TECH_CROSS_SIM -> "CROSS_SIM"
+            REG_TECH_IWLAN -> "IWLAN"
+            REG_TECH_NR -> "NR"
+            REG_TECH_LTE -> "LTE"
             else -> when (attributes.transportType) {
                 AccessNetworkConstants.TRANSPORT_TYPE_WLAN -> "IWLAN"
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN -> "LTE/NR"
@@ -594,9 +770,28 @@ class BrokerInstrumentation : Instrumentation() {
                     resetImsMethod.invoke(subTelephonyManager)
                 }
                 Log.d(TAG, "IMS reset sent for slot=$slotIndex subId=$subId")
+                return
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to reset IMS for subId=$subId", e)
+            Log.w(TAG, "TelephonyManager.resetIms failed for subId=$subId, trying ITelephony fallback", e)
+        }
+        try {
+            val serviceManagerClass = Class.forName("android.os.ServiceManager")
+            val binder = serviceManagerClass.getMethod("getService", String::class.java)
+                .invoke(null, Context.TELEPHONY_SERVICE) as android.os.IBinder
+            val stubClass = Class.forName("com.android.internal.telephony.ITelephony\$Stub")
+            val telephonyService = stubClass.getMethod("asInterface", android.os.IBinder::class.java)
+                .invoke(null, binder)
+            val resetMethod = Class.forName("com.android.internal.telephony.ITelephony").declaredMethods.firstOrNull {
+                it.name == "resetIms" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Int::class.javaPrimitiveType
+            }
+            if (resetMethod != null) {
+                resetMethod.isAccessible = true
+                resetMethod.invoke(telephonyService, slotIndex)
+                Log.d(TAG, "ITelephony.resetIms sent for slot=$slotIndex")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to reset IMS via fallback for slot=$slotIndex subId=$subId", e)
         }
     }
 

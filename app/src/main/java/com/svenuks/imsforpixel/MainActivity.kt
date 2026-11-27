@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
         try {
             HiddenApiBypass.addHiddenApiExemptions("L")
         } catch (e: Exception) {
-            Log.e("TensorIMS", "Failed to apply HiddenApiBypass exemptions", e)
+            Log.e("ModernIMS", "Failed to apply HiddenApiBypass exemptions", e)
         }
 
         LocalAdbManager.initCertStore(this)
@@ -384,6 +384,7 @@ fun MainAppShell(
 
     var status0 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 0)) }
     var status1 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 1)) }
+    var captivePortal by remember { mutableStateOf(SimConfigStore.loadCaptivePortalState(context)) }
 
     LaunchedEffect(launchFlagsSignal) {
         when (consumeRequestedTab()) {
@@ -414,6 +415,7 @@ fun MainAppShell(
     LaunchedEffect(recheckSignal.value) {
         status0 = SimConfigStore.loadLiveStatus(context, 0)
         status1 = SimConfigStore.loadLiveStatus(context, 1)
+        captivePortal = SimConfigStore.loadCaptivePortalState(context)
         needsReapplyAfterBoot = SimConfigStore.isNeedsReapplyAfterBoot(prefs)
     }
 
@@ -484,7 +486,7 @@ fun MainAppShell(
         }
     }
 
-    fun runAction(action: String, targetSlot: Int) {
+    fun runAction(action: String, targetSlot: Int, extraArgs: Map<String, String> = emptyMap()) {
         val port = portInput.toIntOrNull()
         if (port == null || port !in 1..65535) {
             Toast.makeText(context, context.getString(R.string.toast_enable_wireless_debugging), Toast.LENGTH_SHORT).show()
@@ -500,14 +502,23 @@ fun MainAppShell(
         isInstrumenting.set(true)
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                LocalAdbManager.runInstrumentation(context, port, action, targetSlot)
+                LocalAdbManager.runInstrumentation(context, port, action, targetSlot, extraArgs)
             }
             isApplying = false
             isInstrumenting.set(false)
             result.fold(
                 onSuccess = {
-                    if (action == "fix_apn") {
-                        Toast.makeText(context, context.getString(R.string.toast_apn_fixed), Toast.LENGTH_SHORT).show()
+                    val toastRes = when (action) {
+                        "fix_apn" -> R.string.toast_apn_fixed
+                        "reset_ims" -> R.string.toast_ims_restarted
+                        "persistent_volte_enable" -> R.string.toast_persistent_enabled
+                        "persistent_volte_restore" -> R.string.toast_persistent_restored
+                        "captive_portal_write" -> R.string.toast_captive_applied
+                        "captive_portal_reset" -> R.string.toast_captive_reset
+                        else -> null
+                    }
+                    if (toastRes != null) {
+                        Toast.makeText(context, context.getString(toastRes), Toast.LENGTH_SHORT).show()
                     }
                     MainActivity.onInstrumentDone?.invoke(action, true)
                 },
@@ -633,6 +644,7 @@ fun MainAppShell(
                     onFixApnSlot = { slot -> runAction("fix_apn", slot) },
                     onApplyAllEnabled = { runAction("apply", -1) },
                     onRestoreAll = { runAction("clear", -1) },
+                    onRestartIms = { runAction("reset_ims", -1) },
                     onRefreshStatus = { runAction("query", -1) }
                 )
                 AppDestination.CONFIGURE -> SimConfigScreen(
@@ -649,12 +661,20 @@ fun MainAppShell(
                 AppDestination.DIAGNOSTICS -> DiagnosticsScreen(
                     status0 = status0,
                     status1 = status1,
+                    captivePortal = captivePortal,
                     portInput = portInput,
                     onPortInputChange = { portInput = it },
                     isApplying = isApplying,
                     recheckSignal = recheckSignal.value,
                     onRefreshStatus = { runAction("query", -1) },
-                    onFixApnSlot = { slot -> runAction("fix_apn", slot) }
+                    onFixApnSlot = { slot -> runAction("fix_apn", slot) },
+                    onRestartImsSlot = { slot -> runAction("reset_ims", slot) },
+                    onPersistentVolteEnable = { slot -> runAction("persistent_volte_enable", slot) },
+                    onPersistentVolteRestore = { slot -> runAction("persistent_volte_restore", slot) },
+                    onCaptivePortalWrite = { http, https ->
+                        runAction("captive_portal_write", -1, mapOf("http_url" to http, "https_url" to https))
+                    },
+                    onCaptivePortalReset = { runAction("captive_portal_reset", -1) }
                 )
             }
         }

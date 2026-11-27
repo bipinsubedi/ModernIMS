@@ -101,11 +101,30 @@ object LocalAdbManager {
         }
     }
 
-    fun runInstrumentation(context: Context, port: Int, action: String, targetSlot: Int): Result<String> {
+    private fun quoteShellArg(value: String): String =
+        "'" + value.replace("'", "'\"'\"'") + "'"
+
+    fun runInstrumentation(
+        context: Context,
+        port: Int,
+        action: String,
+        targetSlot: Int,
+        extraArgs: Map<String, String> = emptyMap()
+    ): Result<String> {
         val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
         return try {
             Kadb.create("127.0.0.1", port, 60000, 60000).use { kadb ->
-                val cmd = "am instrument -w -e action $action -e target_slot $targetSlot ${context.packageName}/com.svenuks.imsforpixel.BrokerInstrumentation"
+                val extrasPart = extraArgs.entries.joinToString(" ") { (k, v) ->
+                    "-e $k ${quoteShellArg(v)}"
+                }
+                val cmd = buildString {
+                    append("am instrument -w -e action $action -e target_slot $targetSlot ")
+                    if (extrasPart.isNotEmpty()) {
+                        append(extrasPart)
+                        append(' ')
+                    }
+                    append("${context.packageName}/com.svenuks.imsforpixel.BrokerInstrumentation")
+                }
                 val response = kadb.shell(cmd)
                 val logBody = "$ $cmd\nexit=${response.exitCode}\n${response.output}"
                 SimConfigStore.setLastExecutionLog(prefs, logBody)
@@ -136,7 +155,7 @@ object LocalAdbManager {
             try {
                 TileService.requestListeningState(
                     context,
-                    ComponentName(context, TensorImsTileService::class.java)
+                    ComponentName(context, ModernImsTileService::class.java)
                 )
             } catch (_: Exception) {
             }

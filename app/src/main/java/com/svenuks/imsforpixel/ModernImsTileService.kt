@@ -8,7 +8,8 @@ import android.provider.Settings
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
-class TensorImsTileService : TileService() {
+/** Quick Settings tile showing live IMS status and launching 1-tap post-reboot auto-apply. */
+class ModernImsTileService : TileService() {
 
     override fun onStartListening() {
         super.onStartListening()
@@ -33,6 +34,8 @@ class TensorImsTileService : TileService() {
                     val transport = when (st.imsTransport) {
                         "IWLAN" -> "VoWiFi"
                         "CROSS_SIM" -> "Backup"
+                        "NR" -> "VoNR"
+                        "LTE" -> "VoLTE"
                         else -> st.imsTransport
                     }
                     "$name $transport"

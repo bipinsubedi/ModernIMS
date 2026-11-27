@@ -34,12 +34,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.svenuks.imsforpixel.CustomCarrierEntry
+import com.svenuks.imsforpixel.NrMode
 import com.svenuks.imsforpixel.R
 import com.svenuks.imsforpixel.SimConfigStore
 import com.svenuks.imsforpixel.SimLiveStatus
 import com.svenuks.imsforpixel.SimOverrideConfig
 import com.svenuks.imsforpixel.SimPreset
 import com.svenuks.imsforpixel.WfcMode
+import com.svenuks.imsforpixel.ui.theme.StatusAmber
 import com.svenuks.imsforpixel.ui.theme.StatusBlue
 import com.svenuks.imsforpixel.ui.theme.StatusGreen
 import com.svenuks.imsforpixel.ui.theme.StatusRed
@@ -65,6 +67,7 @@ fun SimConfigScreen(
     }
     var showAdvanced by remember(selectedSlot) { mutableStateOf(false) }
     var showAddKeyDialog by remember { mutableStateOf(false) }
+    var hasCustomPreset by remember { mutableStateOf(SimConfigStore.hasCustomPreset(prefs)) }
 
     LaunchedEffect(selectedSlot, recheckSignal) {
         val reloaded = SimConfigStore.loadSimConfig(prefs, selectedSlot)
@@ -158,23 +161,86 @@ fun SimConfigScreen(
         // Smart Presets Row (always accessible — tapping a preset auto-enables override for this SIM)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.presets_title),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.presets_title),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (hasCustomPreset) stringResource(R.string.btn_update_my_preset) else stringResource(R.string.btn_save_my_preset),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                SimConfigStore.saveCustomPreset(prefs, config)
+                                hasCustomPreset = true
+                                Toast.makeText(context, context.getString(R.string.toast_my_preset_saved), Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (hasCustomPreset) {
+                        val myLabel = stringResource(R.string.preset_my_saved)
+                        Surface(
+                            modifier = Modifier
+                                .width(164.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    SimConfigStore.loadCustomPreset(prefs)?.let { loaded ->
+                                        updateConfig(loaded)
+                                        Toast.makeText(context, context.getString(R.string.toast_preset_applied, myLabel), Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = StatusAmber.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, StatusAmber.copy(alpha = 0.55f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(myLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = StatusAmber, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(stringResource(R.string.preset_my_saved_desc), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, lineHeight = 13.sp)
+                                }
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Delete preset",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable {
+                                            SimConfigStore.clearCustomPreset(prefs)
+                                            hasCustomPreset = false
+                                            Toast.makeText(context, context.getString(R.string.toast_my_preset_cleared), Toast.LENGTH_SHORT).show()
+                                        }
+                                )
+                            }
+                        }
+                    }
+
                     val presets = listOf(
                         Triple(SimPreset.TRAVEL_BACKUP, stringResource(R.string.preset_travel_backup), stringResource(R.string.preset_travel_desc)),
                         Triple(SimPreset.UNSUPPORTED_FULL, stringResource(R.string.preset_unsupported_full), stringResource(R.string.preset_full_desc)),
                         Triple(SimPreset.VOLTE_VONR_ONLY, stringResource(R.string.preset_volte_vonr), stringResource(R.string.preset_volte_vonr_desc)),
+                        Triple(SimPreset.PURE_LTE_BATTERY, stringResource(R.string.preset_pure_lte), stringResource(R.string.preset_pure_lte_desc)),
                         Triple(SimPreset.MINIMAL_VOLTE, stringResource(R.string.preset_minimal_volte), stringResource(R.string.preset_minimal_desc))
                     )
                     for ((preset, label, subtitle) in presets) {
@@ -210,8 +276,25 @@ fun SimConfigScreen(
                     ToggleRow(stringResource(R.string.toggle_vonr_title), stringResource(R.string.toggle_vonr_desc), config.vonr) {
                         updateConfig(config.copy(vonr = it))
                     }
-                    ToggleRow(stringResource(R.string.toggle_nr_sa_title), stringResource(R.string.toggle_nr_sa_desc), config.nrSaUnlock) {
-                        updateConfig(config.copy(nrSaUnlock = it))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    NrModeSelector(
+                        label = stringResource(R.string.label_nr_mode),
+                        selectedMode = config.nrMode,
+                        onModeSelected = { mode ->
+                            updateConfig(
+                                config.copy(
+                                    nrMode = mode,
+                                    nrSaUnlock = mode in NrMode.NSA_AND_SA..NrMode.NSA_ONLY
+                                )
+                            )
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    ToggleRow(stringResource(R.string.toggle_five_g_plus_title), stringResource(R.string.toggle_five_g_plus_desc), config.fiveGPlusIcon) {
+                        updateConfig(config.copy(fiveGPlusIcon = it))
+                    }
+                    ToggleRow(stringResource(R.string.toggle_five_g_thresholds_title), stringResource(R.string.toggle_five_g_thresholds_desc), config.fiveGThresholds) {
+                        updateConfig(config.copy(fiveGThresholds = it))
                     }
                 }
             }
@@ -292,6 +375,9 @@ fun SimConfigScreen(
                                 }
                                 ToggleRow(stringResource(R.string.toggle_show_4g_icon_title), stringResource(R.string.toggle_show_4g_icon_desc), config.show4gIcon) {
                                     updateConfig(config.copy(show4gIcon = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_always_rat_title), stringResource(R.string.toggle_always_rat_desc), config.alwaysShowDataRatIcon) {
+                                    updateConfig(config.copy(alwaysShowDataRatIcon = it))
                                 }
                                 ToggleRow(stringResource(R.string.toggle_allow_apn_title), stringResource(R.string.toggle_allow_apn_desc), config.allowApnEdit) {
                                     updateConfig(config.copy(allowApnEdit = it))
@@ -540,6 +626,39 @@ private fun SectionCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             content()
+        }
+    }
+}
+
+@Composable
+private fun NrModeSelector(
+    label: String,
+    selectedMode: Int,
+    onModeSelected: (Int) -> Unit
+) {
+    val options = listOf(
+        NrMode.DEFAULT to stringResource(R.string.nr_mode_default),
+        NrMode.NSA_AND_SA to stringResource(R.string.nr_mode_nsa_sa),
+        NrMode.SA_ONLY to stringResource(R.string.nr_mode_sa),
+        NrMode.NSA_ONLY to stringResource(R.string.nr_mode_nsa),
+        NrMode.DISABLED to stringResource(R.string.nr_mode_off)
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            for ((mode, title) in options) {
+                FilterChip(
+                    selected = selectedMode == mode,
+                    onClick = { onModeSelected(mode) },
+                    label = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Medium) }
+                )
+            }
         }
     }
 }
