@@ -408,7 +408,7 @@ object SimConfigStore {
     fun buildDiagnosticReport(context: Context, s0: SimLiveStatus, s1: SimLiveStatus): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return buildString {
-            appendLine("# ModernIMS Diagnostic Report")
+            appendLine("# TensorIMS Diagnostic Report")
             appendLine("- Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, SDK ${Build.VERSION.SDK_INT})")
             appendLine("- App Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             appendLine()
