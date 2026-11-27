@@ -1,13 +1,17 @@
 # ModernIMS
 
-> **Rootless Material You IMS & 5G toolkit for Google Pixel (Android 10–17): per-SIM VoLTE, VoWiFi, working Backup Calling (Cross-SIM), Experimental Persistent VoLTE, 5G SA/NSA/5G+ tuning, Live Capability Diagnostics, Captive Portal fix, and 1-tap Quick Settings re-apply.**
+> **100% Standalone Material You IMS & 5G toolkit for Google Pixel (Android 10–17) — No Root and No Separate Shizuku App Required.**
+> Per-SIM VoLTE, VoWiFi, working Backup Calling (Cross-SIM), Experimental Persistent VoLTE, 5G SA/NSA/5G+ tuning, Live Capability Diagnostics, Captive Portal fix, and 1-tap Quick Settings re-apply.
 
 [![Platform](https://img.shields.io/badge/Platform-Android%2010--17-10B981.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-28%2B-38BDF8.svg)](https://developer.android.com)
 [![UI](https://img.shields.io/badge/UI-Material%20You%203-60A5FA.svg)](https://m3.material.io)
+[![No Shizuku](https://img.shields.io/badge/Shizuku-Not%20Required-10B981.svg)](#first-time-setup-guide)
 [![Release](https://img.shields.io/github/v/release/bipinsubedi/ModernIMS?color=10B981)](https://github.com/bipinsubedi/ModernIMS/releases)
 [![Obtainium](https://img.shields.io/badge/Obtainium-Import-blue?logo=obtainium&logoColor=white)](https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/bipinsubedi/ModernIMS)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B.svg)](LICENSE)
+
+> **No Root, No PC, No Shizuku Needed:** Unlike classic Pixel IMS or Shizuku-based tools, **ModernIMS has built-in local Wireless Debugging (`Kadb`) pairing directly inside the app**. You do **not** need to install Shizuku or run any companion server app.
 
 ---
 
@@ -29,9 +33,9 @@
 
 Originally forked from [`svenuks/ImsForPixel`](https://github.com/svenuks/ImsForPixel) and inspired by advanced Tensor diagnostics in [`Pixel-Tailor-CN/TensorIMS`](https://github.com/Pixel-Tailor-CN/TensorIMS), **ModernIMS** fixes the dual-SIM and Android 14–17 regressions that break classic Pixel IMS and earlier utilities:
 
-| Capability | Classic Pixel IMS | Original `ImsForPixel` | **ModernIMS (v2.2.0)** |
+| Capability | Classic Pixel IMS | Original `ImsForPixel` | **ModernIMS (v2.2.1)** |
 |---|---|---|---|
-| **Root / Shizuku Required** | ⚠️ Requires Shizuku | ❌ Standalone | ❌ **Standalone (Built-in Wireless ADB pairing)** |
+| **No Root / No Shizuku Needed** | ❌ Requires separate Shizuku app | ✅ Standalone | ✅ **100% Standalone (Built-in Wireless ADB — zero external apps)** |
 | **Per-SIM Isolation** | ⚠️ Manual per-SIM | ❌ Overwrites & resets **both** SIMs | ✅ **True Per-SIM Master Switch & Non-Destructive Bundles** |
 | **Backup Calling (Cross-SIM)** | ⚠️ CarrierConfig only (broken on Android 14+) | ❌ Hardcoded OFF | ✅ **CarrierConfig + `ImsMmTelManager` + 4-Point Readiness Check** |
 | **APN Conflict Detection** | ❌ None | ❌ None | ✅ **Detects & 1-tap fixes `apn=internet` `,ims` ePDG ERR 24 loops** |
@@ -78,12 +82,42 @@ Android 16/17 blocks non-system apps from using `overrideConfig(..., persistent 
 
 ---
 
-## Quick Start
+## First-Time Setup Guide
 
-1. **Install ModernIMS:** Download the latest `ModernIMS-v*.apk` from [GitHub Releases](https://github.com/bipinsubedi/ModernIMS/releases).
-2. **Pair Once:** Connect to Wi-Fi, tap the **Wireless ADB** pill at the top of **Home** → **Open Wireless Debugging** → **Pair device with pairing code**, and enter the 6-digit code in the notification.
-3. **Configure Your SIM(s):** Go to **Configure**, select SIM 1 or SIM 2, pick a **Smart Preset** (or customize toggles), and tap **Apply**.
-4. **Add the Quick Settings Tile (Recommended):** Pull down Quick Settings → Edit → drag **ModernIMS** into your active tiles for 1-tap re-apply after reboots.
+> **Before You Start:** You do **not** need Root, a computer, or a separate Shizuku installation. Everything runs directly on your Pixel over Android's built-in Wireless Debugging. (Wi-Fi is only needed during initial pairing and when applying changes.)
+
+### Step 1 — Enable Developer Options (Once)
+1. Open **Settings → About phone**.
+2. Tap **Build number** 7 times until *"You are now a developer!"* appears.
+
+### Step 2 — Install ModernIMS & Allow Notifications
+1. Download the latest `ModernIMS-v*.apk` from [GitHub Releases](https://github.com/bipinsubedi/ModernIMS/releases) and install it.
+2. Open **ModernIMS** and tap **Allow** when asked for **Notifications** (used to type your 6-digit pairing code straight from the notification shade and to send 1-tap reboot reminders).
+
+### Step 3 — Pair Wireless Debugging (One-Time Setup)
+1. Make sure your Pixel is connected to **Wi-Fi**.
+2. In **ModernIMS (Home)**, tap the **Wireless ADB** status bar at the top → tap **Open Wireless Debugging**.
+3. Toggle **Wireless debugging** **ON** (select *"Always allow on this network"* if prompted).
+4. Tap **Pair device with pairing code** — a 6-digit pairing code will appear on screen.
+5. Pull down your **Notification shade**, tap **Send Pairing Code** on the ModernIMS notification, enter the 6 digits, and send.
+6. Return to **ModernIMS** — the top bar will turn green (**`Wireless ADB Ready`**). You will not need to pair again unless you clear app data or revoke Wireless Debugging authorizations.
+
+### Step 4 — Configure & Apply Only the SIM(s) You Need
+1. Open the **Configure** tab and select **SIM 1** or **SIM 2** at the top.
+2. Pick a **1-Tap Smart Preset** (for example, **Travel & Backup** for VoLTE + VoWiFi + Backup Calling) or turn on **Override Carrier Config for this SIM** to customize individual switches.
+   - *Tip for Dual-SIM users:* Leave **Override Carrier Config** **OFF** on any SIM that already works natively (e.g., local eSIM data line) so its stock Pixel carrier settings remain untouched.
+3. Tap **Apply** — ModernIMS applies your config live without restarting the app (`--no-restart`) and updates your IMS status card.
+
+### Step 5 — Verify Status & Set Up 1-Tap Post-Reboot Recovery
+1. Open **Diagnostics** to confirm all 4 checks in **Backup Calling Readiness Check** show **Ready**, and inspect live `*#*#4636#*#*` capabilities (`VoLTE`, `VoWiFi`, `VoNR`, `VT`, `5G NSA`, `5G SA`).
+2. Pull down **Quick Settings → Edit (pencil icon)** and add the **ModernIMS** tile to your active tiles.
+3. *(Optional for banking apps)* Turn on **Auto-Disable Wireless Debug After Apply** in **Diagnostics** so Wireless Debugging shuts off automatically right after configs are written.
+
+### What to Do After Your Phone Reboots
+Android clears non-system CarrierConfig overrides on every restart. With ModernIMS, re-applying takes seconds via any of these 3 ways:
+- **Quick Settings Tile (Recommended):** Tap the **ModernIMS** tile → toggle **Wireless debugging ON** → ModernIMS auto-applies in the background and notifies you.
+- **Boot Notification:** Tap **Quick Re-Apply** (if Wireless Debugging is already ON) or **Auto-Apply Watcher** directly from the post-reboot notification.
+- **Just Open ModernIMS:** If **Auto-Apply on Launch** and **Wireless Debugging** are ON, opening ModernIMS re-applies your saved overrides automatically.
 
 ---
 
