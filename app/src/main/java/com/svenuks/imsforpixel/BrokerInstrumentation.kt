@@ -5,16 +5,18 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.UiAutomation
+import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Telephony
 import android.telephony.AccessNetworkConstants
 import android.telephony.CarrierConfigManager
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import android.telephony.ims.ImsManager
-import android.telephony.ims.ImsMmTelManager
 import android.telephony.ims.ImsReasonInfo
 import android.telephony.ims.ImsRegistrationAttributes
 import android.telephony.ims.RegistrationManager
@@ -35,6 +37,7 @@ class BrokerInstrumentation : Instrumentation() {
         private const val REGISTRATION_TECH_IWLAN = 1
         private const val REGISTRATION_TECH_CROSS_SIM = 2
         private const val REGISTRATION_TECH_NR = 3
+        private val CARRIERS_URI: Uri = Telephony.Carriers.CONTENT_URI
     }
 
     private data class SimTarget(
@@ -43,6 +46,11 @@ class BrokerInstrumentation : Instrumentation() {
         val carrierName: String,
         val isEmbedded: Boolean,
         val mccMnc: String
+    )
+
+    private data class ApnHealth(
+        val apnImsPresent: Boolean = true,
+        val conflictDetail: String = ""
     )
 
     private fun findMethod(obj: Any, name: String, paramCount: Int? = null): Method? {
@@ -121,11 +129,12 @@ class BrokerInstrumentation : Instrumentation() {
                 try {
                     when (action) {
                         "query" -> queryAllSlots()
+                        "fix_apn" -> fixApnConflicts(targetSlot)
                         "clear" -> clearAndPoll(targetSlot)
                         else -> applyAndPoll(targetSlot)
                     }
-                    if (action != "query") {
-                        showImsStatusNotification(action != "clear")
+                    if (action == "apply" || action == "clear") {
+                        showImsStatusNotification(action == "apply")
                     }
                 } finally {
                     try {
@@ -216,15 +225,105 @@ class BrokerInstrumentation : Instrumentation() {
         }
     }
 
+    private fun inspectApnHealth(mccMnc: String): ApnHealth {
+        if (mccMnc.isBlank()) return ApnHealth()
+        return try {
+            var hasImsApn = false
+            val conflicts = mutableListOf<String>()
+            val projection = arrayOf("_id", "apn", "type", "carrier_enabled")
+            context.contentResolver.query(
+                CARRIERS_URI,
+                projection,
+                "numeric=?",
+                arrayOf(mccMnc),
+                null
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndex("_id")
+                val apnIdx = cursor.getColumnIndex("apn")
+                val typeIdx = cursor.getColumnIndex("type")
+                val enabledIdx = cursor.getColumnIndex("carrier_enabled")
+                while (cursor.moveToNext()) {
+                    val id = if (idIdx >= 0) cursor.getInt(idIdx) else -1
+                    val apn = if (apnIdx >= 0) (cursor.getString(apnIdx) ?: "") else ""
+                    val typeRaw = if (typeIdx >= 0) (cursor.getString(typeIdx) ?: "") else ""
+                    val enabled = if (enabledIdx >= 0) cursor.getInt(enabledIdx) else 1
+                    if (enabled == 0) continue
+
+                    val types = typeRaw.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                    if (apn.equals("ims", ignoreCase = true) && types.contains("ims")) {
+                        hasImsApn = true
+                    } else if (types.contains("ims") && types.any { it != "ims" && it != "ia" }) {
+                        conflicts.add("_id=$id|$apn|$typeRaw")
+                    }
+                }
+            }
+            ApnHealth(
+                apnImsPresent = hasImsApn,
+                conflictDetail = conflicts.joinToString("; ")
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "APN health inspection skipped for $mccMnc: ${e.message}")
+            ApnHealth()
+        }
+    }
+
+    private fun fixApnConflicts(targetSlot: Int) {
+        val subManager = context.getSystemService(SubscriptionManager::class.java) ?: return
+        val telephonyManager = context.getSystemService(TelephonyManager::class.java) ?: return
+        val targets = resolveSimTargets(subManager)
+
+        for (target in targets) {
+            if (targetSlot != -1 && target.slotIndex != targetSlot) continue
+            if (target.mccMnc.isBlank()) continue
+
+            try {
+                val projection = arrayOf("_id", "apn", "type")
+                context.contentResolver.query(
+                    CARRIERS_URI,
+                    projection,
+                    "numeric=?",
+                    arrayOf(target.mccMnc),
+                    null
+                )?.use { cursor ->
+                    val idIdx = cursor.getColumnIndex("_id")
+                    val apnIdx = cursor.getColumnIndex("apn")
+                    val typeIdx = cursor.getColumnIndex("type")
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getInt(idIdx)
+                        val apn = cursor.getString(apnIdx) ?: ""
+                        val typeRaw = cursor.getString(typeIdx) ?: ""
+                        val types = typeRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+                        if (apn.equals("ims", ignoreCase = true) && types.any { it.equals("ims", ignoreCase = true) }) {
+                            val cv = ContentValues().apply { put("sub_id", target.subId) }
+                            context.contentResolver.update(CARRIERS_URI, cv, "_id=?", arrayOf(id.toString()))
+                            Log.d(TAG, "Bound ims APN _id=$id to subId=${target.subId}")
+                        } else if (types.any { it.equals("ims", ignoreCase = true) } && types.size > 1) {
+                            val cleaned = types.filterNot { it.equals("ims", ignoreCase = true) }.joinToString(",")
+                            val cv = ContentValues().apply { put("type", cleaned) }
+                            context.contentResolver.update(CARRIERS_URI, cv, "_id=?", arrayOf(id.toString()))
+                            Log.d(TAG, "Cleaned ims type from APN _id=$id ($apn): $typeRaw -> $cleaned")
+                        }
+                    }
+                }
+                resetImsForSub(telephonyManager, target.subId, target.slotIndex)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fix APN conflict for slot=${target.slotIndex} (${target.mccMnc})", e)
+            }
+        }
+        pollStatuses(if (targetSlot >= 0) setOf(targetSlot) else emptySet(), isClear = false)
+    }
+
     private fun queryAllSlots(): List<SimLiveStatus> {
         val subManager = context.getSystemService(SubscriptionManager::class.java) ?: return emptyList()
         val imsManager = context.getSystemService(ImsManager::class.java)
+        val carrierConfigManager = context.getSystemService(CarrierConfigManager::class.java)
         val targets = resolveSimTargets(subManager)
         val sharedPrefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
         val statuses = mutableListOf<SimLiveStatus>()
 
         for (target in targets) {
-            val status = querySingleSlotStatus(target, imsManager)
+            val status = querySingleSlotStatus(target, imsManager, carrierConfigManager, sharedPrefs)
             sharedPrefs.edit().putBoolean("ims_registered_slot_${target.slotIndex}", status.imsRegistered).commit()
             SimConfigStore.saveLiveStatus(context, status)
             statuses.add(status)
@@ -233,7 +332,13 @@ class BrokerInstrumentation : Instrumentation() {
         return statuses
     }
 
-    private fun querySingleSlotStatus(target: SimTarget, imsManager: ImsManager?): SimLiveStatus {
+    @Suppress("DEPRECATION")
+    private fun querySingleSlotStatus(
+        target: SimTarget,
+        imsManager: ImsManager?,
+        carrierConfigManager: CarrierConfigManager?,
+        sharedPrefs: android.content.SharedPreferences
+    ): SimLiveStatus {
         var imsRegistered = false
         var imsTransport = "NONE"
         var crossSimEnabled = false
@@ -300,11 +405,30 @@ class BrokerInstrumentation : Instrumentation() {
         }
 
         if (!imsRegistered) {
-            val fallbackReg = checkImsRegisteredFallback(target.subId, target.slotIndex)
+            val fallbackReg = checkImsRegisteredFallback(target.subId)
             if (fallbackReg) {
                 imsRegistered = true
                 if (imsTransport == "NONE") imsTransport = "REGISTERED"
             }
+        }
+
+        val carrierConfigVersion = try {
+            carrierConfigManager?.getConfigForSubId(target.subId)
+                ?.getString("carrier_config_version_string")
+                ?.lineSequence()
+                ?.firstOrNull()
+                ?.trim()
+                ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+
+        val apnHealth = inspectApnHealth(target.mccMnc)
+        val configApplied = isConfigApplied(target.slotIndex)
+        val overrideCount = if (configApplied) {
+            SimConfigStore.buildCarrierConfigBundle(SimConfigStore.loadSimConfig(sharedPrefs, target.slotIndex)).keySet().size
+        } else {
+            0
         }
 
         return SimLiveStatus(
@@ -317,7 +441,12 @@ class BrokerInstrumentation : Instrumentation() {
             imsTransport = imsTransport,
             crossSimEnabled = crossSimEnabled,
             wfcEnabled = wfcEnabled,
-            configApplied = isConfigApplied(target.slotIndex)
+            configApplied = configApplied,
+            carrierConfigVersion = carrierConfigVersion,
+            overrideCount = overrideCount,
+            apnConflictDetail = apnHealth.conflictDetail,
+            apnImsPresent = apnHealth.apnImsPresent,
+            lastUpdatedEpochMs = System.currentTimeMillis()
         )
     }
 
@@ -349,7 +478,7 @@ class BrokerInstrumentation : Instrumentation() {
         }
     }
 
-    private fun checkImsRegisteredFallback(subId: Int, slotIndex: Int): Boolean {
+    private fun checkImsRegisteredFallback(subId: Int): Boolean {
         return try {
             val serviceManagerClass = Class.forName("android.os.ServiceManager")
             val getServiceMethod = serviceManagerClass.getMethod("getService", String::class.java)
@@ -366,7 +495,7 @@ class BrokerInstrumentation : Instrumentation() {
                     }
                     if (method != null) {
                         method.isAccessible = true
-                        return method.invoke(telephonyService, if (name == "isImsRegisteredForSubscriber") subId else subId) as Boolean
+                        return method.invoke(telephonyService, subId) as Boolean
                     }
                 } catch (_: Exception) {
                 }
@@ -430,8 +559,6 @@ class BrokerInstrumentation : Instrumentation() {
                 if (policyMethod != null) {
                     policyMethod.invoke(subTm, MOBILE_DATA_POLICY_AUTO_DATA_SWITCH, true)
                     Log.d(TAG, "Enabled MOBILE_DATA_POLICY_AUTO_DATA_SWITCH for subId=$subId")
-                } else {
-                    Log.w(TAG, "setMobileDataPolicyEnabled not found on TelephonyManager")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to enable auto data switch policy for subId=$subId", e)
@@ -495,7 +622,6 @@ class BrokerInstrumentation : Instrumentation() {
                 continue
             }
 
-            // Ensure overrideEnabled is marked true if user explicitly targeted this slot
             if (targetSlot != -1 && !config.overrideEnabled) {
                 sharedPrefs.edit().putBoolean("override_enabled_slot_${target.slotIndex}", true).commit()
             }

@@ -3,6 +3,11 @@
     <string name="app_name">IMS for Pixel+</string>
     <string name="app_subtitle">Per-SIM Rootless VoLTE / VoWiFi / Backup Calling / VoNR</string>
 
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_configure">Configure</string>
+    <string name="nav_diagnostics">Diagnostics</string>
+
     <!-- Notification Strings -->
     <string name="notification_channel_ims_status">IMS Activation Status</string>
     <string name="notification_title_volte_success">✅ IMS configuration applied</string>
@@ -13,6 +18,10 @@
     <string name="notification_sim2_registered">SIM 2: IMS Registered</string>
     <string name="notification_sim2_not_registered">SIM 2: IMS Not Registered</string>
     <string name="notification_config_cleared">Carrier config overrides cleared; native carrier defaults restored</string>
+
+    <string name="notification_channel_boot">Reboot Reminder</string>
+    <string name="notification_boot_title">IMS for Pixel+ · Re-apply needed</string>
+    <string name="notification_boot_body">Android cleared temporary IMS overrides on reboot. Tap to re-apply.</string>
 
     <string name="notification_permission_required">Notification permission required to enter pairing code from notification shade</string>
     <string name="notification_channel_pairing">Wireless Debugging Pairing</string>
@@ -25,41 +34,74 @@
     <string name="toast_pairing_in_progress">Pairing device in background...</string>
     <string name="notification_pairing_port_progress">Pairing with port %1$d...</string>
     <string name="toast_pairing_success">Pairing successful via notification!</string>
-    <string name="notification_pairing_success">Pairing successful! Return to app to activate config.</string>
+    <string name="notification_pairing_success">Pairing successful! Return to app to apply configuration.</string>
     <string name="toast_pairing_failed">Pairing failed: %1$s</string>
     <string name="notification_pairing_failed">Pairing failed: %1$s</string>
 
     <!-- Toast Strings -->
-    <string name="toast_enable_wireless_debugging">Please enable Wireless Debugging first</string>
+    <string name="toast_enable_wireless_debugging">Enable Wireless Debugging (and pair once) first</string>
     <string name="toast_activation_failed">Activation failed: %1$s</string>
     <string name="toast_restore_failed">Restore failed: %1$s</string>
     <string name="toast_developer_options_not_found">Developer options not found</string>
-    <string name="toast_no_sim_override_enabled">Enable "Override Carrier Config" on at least one SIM first, or use Apply on a specific SIM tab</string>
+    <string name="toast_no_sim_override_enabled">Enable "Override Carrier Config" on at least one SIM first, or tap Apply on a specific SIM</string>
+    <string name="toast_preset_applied">Loaded preset: %1$s (tap Apply to write)</string>
+    <string name="toast_report_copied">Diagnostic report copied to clipboard</string>
+    <string name="toast_apn_fixed">APN conflict cleaned up and IMS refreshed</string>
+    <string name="toast_shortcut_unavailable">System screen unavailable on this build</string>
+
+    <!-- Dashboard -->
+    <string name="adb_banner_ready">Wireless ADB Ready · Port %1$s</string>
+    <string name="adb_banner_unpaired">Wireless ADB Detected (Port %1$s) · Pairing Required</string>
+    <string name="adb_banner_disconnected">Wireless Debugging Not Connected</string>
+    <string name="adb_wifi_on">Wi-Fi connected · Tap to expand setup or manual port</string>
+    <string name="adb_wifi_off">Connect to Wi-Fi to enable Wireless Debugging</string>
+    <string name="adb_setup_hint">1. Connect to Wi-Fi  2. Tap below and enable Wireless Debugging  3. Tap "Pair device with pairing code" and enter the 6-digit code in the notification.</string>
+    <string name="dashboard_global_title">Batch Actions</string>
+    <string name="dashboard_global_desc">Only SIMs with Override enabled are modified</string>
+    <string name="dashboard_shortcuts_title">System Shortcuts</string>
+    <string name="shortcut_sim_settings">SIM &amp; Network</string>
+    <string name="shortcut_phone_info">Phone Info</string>
+    <string name="shortcut_dev_options">Wireless Debug</string>
+    <string name="shortcut_wifi_settings">Wi-Fi Settings</string>
+    <string name="apn_conflict_title">APN Conflict Blocking Backup Calling</string>
+    <string name="apn_conflict_desc">Non-IMS APN includes "ims" (%1$s), causing ePDG auth failure (ERR 24).</string>
+    <string name="btn_fix_apn">Fix APN</string>
+    <string name="btn_configure">Configure</string>
+    <string name="btn_apply_short">Apply</string>
+    <string name="btn_restore_short">Restore</string>
 
     <!-- UI Tabs & Headers -->
     <string name="sim_slot_1">SIM 1</string>
     <string name="sim_slot_2">SIM 2</string>
     <string name="config_panel_title">SIM %1$d Settings</string>
     <string name="badge_config_applied">Override: Active</string>
+    <string name="badge_pending_apply">Pending Apply</string>
     <string name="badge_config_default">Carrier Default</string>
     <string name="badge_ims_registered">IMS: Registered</string>
     <string name="badge_ims_not_registered">IMS: Not Registered</string>
-    <string name="diag_backup_on">Backup Calling: ON</string>
-    <string name="diag_backup_off">Backup Calling: OFF</string>
-    <string name="diag_wfc_on">VoWiFi: ON</string>
-    <string name="diag_wfc_off">VoWiFi: OFF</string>
     <string name="btn_refresh_status">Refresh</string>
+
+    <!-- Presets & Sections -->
+    <string name="presets_title">Smart Presets</string>
+    <string name="preset_travel_backup">Travel &amp; Backup</string>
+    <string name="preset_unsupported_full">Unsupported Full</string>
+    <string name="preset_volte_vonr">VoLTE + VoNR</string>
+    <string name="preset_minimal_volte">Minimal VoLTE</string>
+    <string name="section_voice_5g">Voice &amp; 5G</string>
+    <string name="section_wifi_backup">Wi-Fi &amp; Backup Calling</string>
 
     <!-- Master Per-SIM Override -->
     <string name="toggle_override_sim_title">Override Carrier Config for this SIM</string>
     <string name="toggle_override_sim_desc">When OFF, this SIM keeps native carrier defaults completely untouched</string>
-    <string name="notice_sim_untouched">This SIM is untouched (native carrier bundle active). Enable the switch above to customize or apply overrides only to this SIM.</string>
+    <string name="notice_sim_untouched">This SIM is untouched (native carrier bundle active). Enable the switch above or pick a preset to customize only this SIM.</string>
 
-    <!-- Core Toggle Switches -->
+    <!-- Toggle Switches -->
     <string name="toggle_volte_title">Enable VoLTE Calling</string>
     <string name="toggle_volte_desc">Voice calls over 4G/LTE (home and roaming)</string>
     <string name="toggle_vonr_title">Enable 5G Voice Calling (VoNR)</string>
     <string name="toggle_vonr_desc">Enable standalone 5G voice calling (VoNR)</string>
+    <string name="toggle_nr_sa_title">Unlock 5G SA + NSA</string>
+    <string name="toggle_nr_sa_desc">Allow both Standalone (SA) and Non-Standalone (NSA) 5G NR</string>
     <string name="toggle_vowifi_title">Enable Wi-Fi Calling (VoWiFi)</string>
     <string name="toggle_vowifi_desc">Allow calls over Wi-Fi and bypass carrier entitlement checks</string>
     <string name="toggle_wfc_roaming_title">Enable Wi-Fi Calling in Roaming</string>
@@ -78,10 +120,8 @@
     <string name="wfc_mode_wifi_only">Wi-Fi Only</string>
 
     <!-- Advanced Settings Section -->
-    <string name="section_advanced_ims_show">Show Advanced Pixel / Android 17 Settings</string>
-    <string name="section_advanced_ims_hide">Hide Advanced Pixel / Android 17 Settings</string>
-    <string name="toggle_nr_sa_title">Unlock 5G SA + NSA</string>
-    <string name="toggle_nr_sa_desc">Allow both Standalone (SA) and Non-Standalone (NSA) 5G NR</string>
+    <string name="section_advanced_ims_show">Advanced Pixel &amp; Android 17 Settings</string>
+    <string name="section_advanced_ims_hide">Hide Advanced Pixel &amp; Android 17 Settings</string>
     <string name="toggle_ca_lte_plus_title">Force LTE+ / Carrier Aggregation Icon</string>
     <string name="toggle_ca_lte_plus_desc">Set LTE+ bandwidth threshold to 0 kHz and unhide LTE+ icon</string>
     <string name="toggle_vilte_title">Enable Video Calling (ViLTE)</string>
@@ -96,39 +136,27 @@
     <string name="toggle_show_4g_icon_desc">Display 4G instead of LTE in the status bar</string>
     <string name="toggle_allow_apn_title">Allow Adding / Editing IMS APNs</string>
     <string name="toggle_allow_apn_desc">Unlock APN creation and show hidden IMS APNs</string>
+    <string name="toggle_protect_2g_title">Require 2G Network Protection</string>
+    <string name="toggle_protect_2g_desc">Disable insecure 2G fallback by default when supported</string>
     <string name="toggle_auto_data_switch_title">Enable Auto Data Switch Policy</string>
     <string name="toggle_auto_data_switch_desc">Enable system auto-data-switch policy to assist Backup Calling</string>
 
     <!-- Per-SIM Action Buttons -->
-    <string name="btn_apply_sim">Apply SIM %1$d</string>
-    <string name="btn_restore_sim">Restore SIM %1$d</string>
+    <string name="btn_apply_carrier">Apply %1$s</string>
+    <string name="btn_restore_carrier">Restore %1$s</string>
+
+    <!-- Diagnostics -->
+    <string name="diag_btn_refresh">Refresh Live</string>
+    <string name="diag_btn_copy_report">Copy Report</string>
+    <string name="diag_preferences_title">App &amp; Reboot Preferences</string>
+    <string name="toggle_boot_reminder_title">Post-Reboot Reminder Notification</string>
+    <string name="toggle_boot_reminder_desc">Notify after device restart to re-apply temporary IMS overrides</string>
+    <string name="diag_last_log_title">Last Instrumentation Log</string>
+    <string name="diag_no_log">No instrumentation commands executed yet.</string>
 
     <!-- Wireless Debugging Card -->
-    <string name="card_activation_title">Wireless Debugging &amp; Global Actions</string>
-    <string name="step1_title">Step 1: Connect to Wi-Fi (Prerequisite)</string>
-    <string name="step1_desc">Wireless debugging requires your phone to be connected to Wi-Fi</string>
-    <string name="status_connected">Connected</string>
-    <string name="status_not_connected">Not connected</string>
-
-    <string name="step2_title">Step 2: Enable Service &amp; Pair</string>
-    <string name="step2_status_authorized">Paired and authorized</string>
-    <string name="step2_status_needs_pairing">Service enabled (Pairing required)</string>
-    <string name="step2_status_prompt">Please enable Wireless Debugging in Settings</string>
-    <string name="badge_authorized">Authorized</string>
-    <string name="badge_unpaired">Unpaired</string>
-    <string name="btn_open_wireless_debugging">Go to Wireless Debugging</string>
-
-    <string name="step3_title">Step 3: Apply Enabled SIMs</string>
-    <string name="step3_desc">Only SIMs with Override enabled above will be modified</string>
-    <string name="sim1_config_title">SIM 1 Status</string>
-    <string name="sim2_config_title">SIM 2 Status</string>
-    <string name="status_app_optimized">Override Active</string>
-    <string name="status_system_default">Carrier Default</string>
+    <string name="btn_open_wireless_debugging">Open Wireless Debugging</string>
     <string name="btn_activate">Apply Enabled SIMs</string>
-    <string name="btn_waiting">Waiting for service...</string>
-    <string name="btn_restore">Restore All SIMs</string>
-    <string name="hint_ims_update">💡 Use per-SIM Apply/Restore above to patch only NTC without touching ahamo.</string>
-    <string name="toggle_hide_advanced">Hide ADB port</string>
-    <string name="toggle_show_advanced">Show ADB port</string>
+    <string name="btn_restore">Restore All</string>
     <string name="label_adb_port">Connection Port (ADB Port)</string>
 </resources>
