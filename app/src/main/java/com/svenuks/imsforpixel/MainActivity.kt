@@ -381,6 +381,7 @@ fun MainAppShell(
     var needsReapplyAfterBoot by remember { mutableStateOf(SimConfigStore.isNeedsReapplyAfterBoot(prefs)) }
     val isInstrumenting = remember { AtomicBoolean(false) }
     var autoReapplyAttempted by remember { mutableStateOf(false) }
+    var quickReapplyRequested by remember { mutableStateOf(false) }
 
     var status0 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 0)) }
     var status1 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 1)) }
@@ -393,6 +394,7 @@ fun MainAppShell(
         }
         if (consumeAutoApply()) {
             autoReapplyAttempted = false
+            quickReapplyRequested = true
         }
     }
 
@@ -562,14 +564,46 @@ fun MainAppShell(
         }
     }
 
-    // Auto-reapply on launch if device rebooted and Wireless ADB is authorized
-    LaunchedEffect(isAuthorized, needsReapplyAfterBoot) {
-        if (isAuthorized && needsReapplyAfterBoot && !autoReapplyAttempted &&
-            SimConfigStore.isAutoApplyOnLaunch(prefs) && SimConfigStore.hasAnyOverrideEnabled(prefs) && !isApplying
-        ) {
+    // Boot Reminder "Quick Re-Apply" action / shortcut handler:
+    // Waits briefly for Wireless ADB authorization; if still OFF, launches Auto-Apply Watcher & opens Wireless Debugging
+    LaunchedEffect(quickReapplyRequested) {
+        if (!quickReapplyRequested) return@LaunchedEffect
+        var waitedMs = 0
+        while (waitedMs < 2500 && !(isAuthorized && portInput.isNotBlank())) {
+            delay(250)
+            waitedMs += 250
+        }
+        quickReapplyRequested = false
+        if (isAuthorized && portInput.isNotBlank() && !isApplying) {
             autoReapplyAttempted = true
             Toast.makeText(context, context.getString(R.string.toast_auto_reapplying), Toast.LENGTH_SHORT).show()
             runAction("apply", -1)
+        } else {
+            val port = portInput.toIntOrNull() ?: -1
+            AutoApplyService.startWatcher(context, port)
+            Toast.makeText(context, context.getString(R.string.toast_watcher_started), Toast.LENGTH_LONG).show()
+            try {
+                context.startActivity(Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"))
+            } catch (_: Exception) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    // Auto-reapply on launch if device rebooted and Wireless ADB is authorized
+    LaunchedEffect(isAuthorized, needsReapplyAfterBoot) {
+        if (isAuthorized && needsReapplyAfterBoot && !autoReapplyAttempted && !quickReapplyRequested &&
+            SimConfigStore.isAutoApplyOnLaunch(prefs) && SimConfigStore.hasAnyOverrideEnabled(prefs) && !isApplying
+        ) {
+            delay(300)
+            if (isAuthorized && needsReapplyAfterBoot && !autoReapplyAttempted && !quickReapplyRequested && !isApplying) {
+                autoReapplyAttempted = true
+                Toast.makeText(context, context.getString(R.string.toast_auto_reapplying), Toast.LENGTH_SHORT).show()
+                runAction("apply", -1)
+            }
         }
     }
 

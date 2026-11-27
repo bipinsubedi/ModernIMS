@@ -133,16 +133,24 @@ class AutoApplyService : Service() {
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (isFinished.get()) return
                 if (serviceInfo.serviceType.contains("adb-tls-connect")) {
-                    @Suppress("DEPRECATION")
-                    manager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
-                        override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
-                            val port = resolvedServiceInfo.port
-                            if (port in 1..65535) {
-                                tryApplyOnPort(port)
+                    try {
+                        @Suppress("DEPRECATION")
+                        manager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
+                            override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
+                                if (errorCode != NsdManager.FAILURE_ALREADY_ACTIVE) {
+                                    Log.w(TAG, "NSD resolve failed: errorCode=$errorCode")
+                                }
                             }
-                        }
-                    })
+                            override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
+                                val port = resolvedServiceInfo.port
+                                if (port in 1..65535) {
+                                    tryApplyOnPort(port)
+                                }
+                            }
+                        })
+                    } catch (e: Exception) {
+                        Log.w(TAG, "NSD resolve exception ignored", e)
+                    }
                 }
             }
         }
@@ -158,11 +166,23 @@ class AutoApplyService : Service() {
         if (isFinished.get() || !isHandlingPort.compareAndSet(false, true)) return
         Thread {
             try {
-                if (LocalAdbManager.checkAuthorized(port)) {
+                var authorized = false
+                for (attempt in 1..3) {
+                    if (LocalAdbManager.checkAuthorized(port)) {
+                        authorized = true
+                        break
+                    }
+                    if (attempt < 3) {
+                        try { Thread.sleep(800) } catch (_: Exception) {}
+                    }
+                }
+                if (authorized) {
                     val result = LocalAdbManager.runInstrumentation(this, port, "apply", -1)
                     if (result.isSuccess) {
                         isFinished.set(true)
                         handler.removeCallbacks(stopRunnable)
+                        getSystemService(NotificationManager::class.java)?.cancel(204)
+                        LocalAdbManager.requestTileUpdate(this)
                         MainActivity.onInstrumentDone?.invoke("apply", true)
                         postStatusSuccess()
                         stopSelfCleanly()

@@ -1,5 +1,6 @@
 package com.svenuks.imsforpixel
 
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
@@ -11,9 +12,12 @@ import com.flyfishxu.kadb.cert.KadbCertPolicy
 import com.flyfishxu.kadb.cert.OkioFilePrivateKeyStore
 import okio.Path.Companion.toPath
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 object LocalAdbManager {
     private const val TAG = "LocalAdbManager"
+    private val instrumentationLock = Any()
+    val isRunningInstrumentation = AtomicBoolean(false)
 
     fun initCertStore(context: Context) {
         try {
@@ -50,6 +54,7 @@ object LocalAdbManager {
     }
 
     fun pollImsQueryTool(context: Context, kadb: Kadb) {
+        if (isRunningInstrumentation.get()) return
         val pathRes = kadb.shell("pm path ${context.packageName}")
         if (pathRes.exitCode != 0) return
         val path = pathRes.output.trim().substringAfter("package:")
@@ -112,41 +117,58 @@ object LocalAdbManager {
         extraArgs: Map<String, String> = emptyMap()
     ): Result<String> {
         val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
-        return try {
-            Kadb.create("127.0.0.1", port, 60000, 60000).use { kadb ->
-                val extrasPart = extraArgs.entries.joinToString(" ") { (k, v) ->
-                    "-e $k ${quoteShellArg(v)}"
-                }
-                val cmd = buildString {
-                    append("am instrument -w -e action $action -e target_slot $targetSlot ")
-                    if (extrasPart.isNotEmpty()) {
-                        append(extrasPart)
-                        append(' ')
+        synchronized(instrumentationLock) {
+            isRunningInstrumentation.set(true)
+            return try {
+                Kadb.create("127.0.0.1", port, 60000, 60000).use { kadb ->
+                    val extrasPart = extraArgs.entries.joinToString(" ") { (k, v) ->
+                        "-e $k ${quoteShellArg(v)}"
                     }
-                    append("${context.packageName}/com.svenuks.imsforpixel.BrokerInstrumentation")
-                }
-                val response = kadb.shell(cmd)
-                val logBody = "$ $cmd\nexit=${response.exitCode}\n${response.output}"
-                SimConfigStore.setLastExecutionLog(prefs, logBody)
-                if (response.exitCode == 0) {
-                    if (action == "apply") {
-                        SimConfigStore.setNeedsReapplyAfterBoot(prefs, false, commit = true)
-                        if (SimConfigStore.isAutoDisableWifiDebug(prefs)) {
-                            try {
-                                kadb.shell("settings put global adb_wifi_enabled 0")
-                            } catch (_: Exception) {
+                    val useNoRestart = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    val baseCmd = buildString {
+                        append("am instrument ")
+                        if (useNoRestart) append("--no-restart ")
+                        append("-w -e action $action -e target_slot $targetSlot ")
+                        if (extrasPart.isNotEmpty()) {
+                            append(extrasPart)
+                            append(' ')
+                        }
+                        append("${context.packageName}/com.svenuks.imsforpixel.BrokerInstrumentation")
+                    }
+                    val cmd = if (useNoRestart) baseCmd else "nohup $baseCmd >/dev/null 2>&1 &"
+                    val response = kadb.shell(cmd)
+                    val out = response.output
+                    val logBody = "$ $cmd\nexit=${response.exitCode}\n$out"
+                    SimConfigStore.setLastExecutionLog(prefs, logBody)
+
+                    val hasFailureMarker = out.contains("INSTRUMENTATION_FAILED") ||
+                        out.contains("Process crashed") ||
+                        out.contains("INSTRUMENTATION_CODE: 1") ||
+                        out.contains("INSTRUMENTATION_RESULT: error=")
+
+                    if (response.exitCode == 0 && !hasFailureMarker) {
+                        if (action == "apply") {
+                            SimConfigStore.setNeedsReapplyAfterBoot(prefs, false, commit = true)
+                            context.getSystemService(NotificationManager::class.java)?.cancel(204)
+                            if (SimConfigStore.isAutoDisableWifiDebug(prefs)) {
+                                try {
+                                    kadb.shell("settings put global adb_wifi_enabled 0")
+                                } catch (_: Exception) {
+                                }
                             }
                         }
+                        requestTileUpdate(context)
+                        Result.success(out)
+                    } else {
+                        Result.failure(Exception("Instrumentation failed (exit=${response.exitCode}): $out"))
                     }
-                    requestTileUpdate(context)
-                    Result.success(response.output)
-                } else {
-                    Result.failure(Exception("Exit code ${response.exitCode}: ${response.output}"))
                 }
+            } catch (e: Exception) {
+                SimConfigStore.setLastExecutionLog(prefs, "action=$action slot=$targetSlot failed: ${e.message}")
+                Result.failure(e)
+            } finally {
+                isRunningInstrumentation.set(false)
             }
-        } catch (e: Exception) {
-            SimConfigStore.setLastExecutionLog(prefs, "action=$action slot=$targetSlot failed: ${e.message}")
-            Result.failure(e)
         }
     }
 

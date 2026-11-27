@@ -120,6 +120,7 @@ class BrokerInstrumentation : Instrumentation() {
         Log.d(TAG, "action=$action, targetSlot=$targetSlot")
 
         Thread {
+            var errorMsg: String? = null
             try {
                 HiddenApiBypass.addHiddenApiExemptions("L")
             } catch (e: Exception) {
@@ -169,10 +170,16 @@ class BrokerInstrumentation : Instrumentation() {
                         Log.e(TAG, "Failed to drop shell permission identity", e)
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to run instrumentation", e)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to run instrumentation", t)
+                errorMsg = t.message ?: t.javaClass.simpleName
             } finally {
-                finish(0, Bundle())
+                val resBundle = Bundle()
+                val code = if (errorMsg == null) 0 else {
+                    resBundle.putString("error", errorMsg)
+                    1
+                }
+                finish(code, resBundle)
             }
         }.start()
     }
@@ -840,6 +847,7 @@ class BrokerInstrumentation : Instrumentation() {
 
         if (touchedSlots.isNotEmpty()) {
             SimConfigStore.setNeedsReapplyAfterBoot(sharedPrefs, false, commit = true)
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.cancel(204)
         }
         pollStatuses(touchedSlots, isClear = false)
     }
