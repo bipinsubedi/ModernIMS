@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IMS for Pixel</string>
+    <string name="app_name">IMS for Pixel+</string>
     <string name="app_subtitle">免Root原生配置VoLTE/VoNR通话</string>
 
     <!-- Notification Strings -->

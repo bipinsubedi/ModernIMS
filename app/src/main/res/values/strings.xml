@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IMS for Pixel</string>
-    <string name="app_subtitle">Rootless VoLTE/VoNR calling configuration</string>
+    <string name="app_name">IMS for Pixel+</string>
+    <string name="app_subtitle">Per-SIM Rootless VoLTE / VoWiFi / Backup Calling / VoNR</string>
 
     <!-- Notification Strings -->
     <string name="notification_channel_ims_status">IMS Activation Status</string>
-    <string name="notification_title_volte_success">✅ VoLTE activated successfully</string>
-    <string name="notification_title_volte_done">⚠️ VoLTE activation completed</string>
-    <string name="notification_title_config_restored">✅ Configuration restored to default</string>
+    <string name="notification_title_volte_success">✅ IMS configuration applied</string>
+    <string name="notification_title_volte_done">⚠️ IMS apply finished</string>
+    <string name="notification_title_config_restored">✅ Carrier defaults restored</string>
     <string name="notification_sim1_registered">SIM 1: IMS Registered  </string>
     <string name="notification_sim1_not_registered">SIM 1: IMS Not Registered  </string>
     <string name="notification_sim2_registered">SIM 2: IMS Registered</string>
     <string name="notification_sim2_not_registered">SIM 2: IMS Not Registered</string>
-    <string name="notification_config_cleared">Carrier config overrides cleared, please test call functionality</string>
+    <string name="notification_config_cleared">Carrier config overrides cleared; native carrier defaults restored</string>
 
     <string name="notification_permission_required">Notification permission required to enter pairing code from notification shade</string>
     <string name="notification_channel_pairing">Wireless Debugging Pairing</string>
@@ -34,30 +34,77 @@
     <string name="toast_activation_failed">Activation failed: %1$s</string>
     <string name="toast_restore_failed">Restore failed: %1$s</string>
     <string name="toast_developer_options_not_found">Developer options not found</string>
+    <string name="toast_no_sim_override_enabled">Enable "Override Carrier Config" on at least one SIM first, or use Apply on a specific SIM tab</string>
 
     <!-- UI Tabs & Headers -->
     <string name="sim_slot_1">SIM 1</string>
     <string name="sim_slot_2">SIM 2</string>
-    <string name="config_panel_title">Carrier Settings (SIM %1$d)</string>
-    <string name="badge_config_applied">Config: Applied</string>
-    <string name="badge_config_default">Config: Default</string>
+    <string name="config_panel_title">SIM %1$d Settings</string>
+    <string name="badge_config_applied">Override: Active</string>
+    <string name="badge_config_default">Carrier Default</string>
     <string name="badge_ims_registered">IMS: Registered</string>
     <string name="badge_ims_not_registered">IMS: Not Registered</string>
+    <string name="diag_backup_on">Backup Calling: ON</string>
+    <string name="diag_backup_off">Backup Calling: OFF</string>
+    <string name="diag_wfc_on">VoWiFi: ON</string>
+    <string name="diag_wfc_off">VoWiFi: OFF</string>
+    <string name="btn_refresh_status">Refresh</string>
 
-    <!-- Toggle Switches -->
-    <string name="toggle_volte_title">Enable VoLTE Calling (VoLTE)</string>
-    <string name="toggle_volte_desc">Allow voice calls over 4G/LTE network</string>
-    <string name="toggle_vonr_title">Enable 5G Calling (VoNR)</string>
-    <string name="toggle_vonr_desc">Enable standalone 5G voice calling support (VoNR)</string>
+    <!-- Master Per-SIM Override -->
+    <string name="toggle_override_sim_title">Override Carrier Config for this SIM</string>
+    <string name="toggle_override_sim_desc">When OFF, this SIM keeps native carrier defaults completely untouched</string>
+    <string name="notice_sim_untouched">This SIM is untouched (native carrier bundle active). Enable the switch above to customize or apply overrides only to this SIM.</string>
+
+    <!-- Core Toggle Switches -->
+    <string name="toggle_volte_title">Enable VoLTE Calling</string>
+    <string name="toggle_volte_desc">Voice calls over 4G/LTE (home and roaming)</string>
+    <string name="toggle_vonr_title">Enable 5G Voice Calling (VoNR)</string>
+    <string name="toggle_vonr_desc">Enable standalone 5G voice calling (VoNR)</string>
     <string name="toggle_vowifi_title">Enable Wi-Fi Calling (VoWiFi)</string>
-    <string name="toggle_vowifi_desc">Allow calls over Wi-Fi when cellular signal is poor</string>
+    <string name="toggle_vowifi_desc">Allow calls over Wi-Fi and bypass carrier entitlement checks</string>
     <string name="toggle_wfc_roaming_title">Enable Wi-Fi Calling in Roaming</string>
     <string name="toggle_wfc_roaming_desc">Keep Wi-Fi calling enabled when abroad or roaming</string>
-    <string name="toggle_ss_ut_title">Enable Supplementary Services (UT)</string>
-    <string name="toggle_ss_ut_desc">Enable carrier call forwarding, call waiting, and supplemental network settings</string>
+    <string name="toggle_cross_sim_title">Enable Backup Calling (Cross-SIM IMS)</string>
+    <string name="toggle_cross_sim_desc">Tunnel calls/SMS over the other SIM\'s mobile data when this SIM has no service</string>
+    <string name="toggle_ss_ut_title">Enable Supplementary Services (UT / XCAP)</string>
+    <string name="toggle_ss_ut_desc">Enable UT call forwarding/waiting (keep OFF for USSD carriers like docomo/ahamo)</string>
+
+    <!-- WFC Mode Selectors -->
+    <string name="label_wfc_home_mode">Wi-Fi Calling Preference (Home)</string>
+    <string name="label_wfc_roaming_mode">Wi-Fi Calling Preference (Roaming)</string>
+    <string name="wfc_mode_default">Default</string>
+    <string name="wfc_mode_wifi_pref">Wi-Fi Pref</string>
+    <string name="wfc_mode_cell_pref">Cell Pref</string>
+    <string name="wfc_mode_wifi_only">Wi-Fi Only</string>
+
+    <!-- Advanced Settings Section -->
+    <string name="section_advanced_ims_show">Show Advanced Pixel / Android 17 Settings</string>
+    <string name="section_advanced_ims_hide">Hide Advanced Pixel / Android 17 Settings</string>
+    <string name="toggle_nr_sa_title">Unlock 5G SA + NSA</string>
+    <string name="toggle_nr_sa_desc">Allow both Standalone (SA) and Non-Standalone (NSA) 5G NR</string>
+    <string name="toggle_ca_lte_plus_title">Force LTE+ / Carrier Aggregation Icon</string>
+    <string name="toggle_ca_lte_plus_desc">Set LTE+ bandwidth threshold to 0 kHz and unhide LTE+ icon</string>
+    <string name="toggle_vilte_title">Enable Video Calling (ViLTE)</string>
+    <string name="toggle_vilte_desc">Allow carrier video calling over LTE/IMS</string>
+    <string name="toggle_sms_ims_title">Enable SMS over IMS</string>
+    <string name="toggle_sms_ims_desc">Send and receive SMS over IMS (LTE/Wi-Fi/Backup Calling)</string>
+    <string name="toggle_ims_call_features_title">IMS Call Transfer &amp; Conference</string>
+    <string name="toggle_ims_call_features_desc">Allow IMS call transfer, deflection, and conference calling</string>
+    <string name="toggle_show_ims_status_title">Show IMS Status &amp; HD+ Icon</string>
+    <string name="toggle_show_ims_status_desc">Expose IMS registration status and HD+ indicator</string>
+    <string name="toggle_show_4g_icon_title">Show 4G Icon instead of LTE</string>
+    <string name="toggle_show_4g_icon_desc">Display 4G instead of LTE in the status bar</string>
+    <string name="toggle_allow_apn_title">Allow Adding / Editing IMS APNs</string>
+    <string name="toggle_allow_apn_desc">Unlock APN creation and show hidden IMS APNs</string>
+    <string name="toggle_auto_data_switch_title">Enable Auto Data Switch Policy</string>
+    <string name="toggle_auto_data_switch_desc">Enable system auto-data-switch policy to assist Backup Calling</string>
+
+    <!-- Per-SIM Action Buttons -->
+    <string name="btn_apply_sim">Apply SIM %1$d</string>
+    <string name="btn_restore_sim">Restore SIM %1$d</string>
 
     <!-- Wireless Debugging Card -->
-    <string name="card_activation_title">Wireless Debugging Activation</string>
+    <string name="card_activation_title">Wireless Debugging &amp; Global Actions</string>
     <string name="step1_title">Step 1: Connect to Wi-Fi (Prerequisite)</string>
     <string name="step1_desc">Wireless debugging requires your phone to be connected to Wi-Fi</string>
     <string name="status_connected">Connected</string>
@@ -71,17 +118,17 @@
     <string name="badge_unpaired">Unpaired</string>
     <string name="btn_open_wireless_debugging">Go to Wireless Debugging</string>
 
-    <string name="step3_title">Step 3: One-Tap Activate</string>
-    <string name="step3_desc">Apply above parameters to active SIM cards</string>
-    <string name="sim1_config_title">SIM 1 Voice Config</string>
-    <string name="sim2_config_title">SIM 2 Voice Config</string>
-    <string name="status_app_optimized">App Optimized</string>
-    <string name="status_system_default">System Default</string>
-    <string name="btn_activate">One-Tap Activate</string>
+    <string name="step3_title">Step 3: Apply Enabled SIMs</string>
+    <string name="step3_desc">Only SIMs with Override enabled above will be modified</string>
+    <string name="sim1_config_title">SIM 1 Status</string>
+    <string name="sim2_config_title">SIM 2 Status</string>
+    <string name="status_app_optimized">Override Active</string>
+    <string name="status_system_default">Carrier Default</string>
+    <string name="btn_activate">Apply Enabled SIMs</string>
     <string name="btn_waiting">Waiting for service...</string>
-    <string name="btn_restore">Restore Defaults</string>
-    <string name="hint_ims_update">💡 IMS status will automatically update within seconds after activation.</string>
-    <string name="toggle_hide_advanced">Hide advanced settings</string>
-    <string name="toggle_show_advanced">Show advanced settings</string>
+    <string name="btn_restore">Restore All SIMs</string>
+    <string name="hint_ims_update">💡 Use per-SIM Apply/Restore above to patch only NTC without touching ahamo.</string>
+    <string name="toggle_hide_advanced">Hide ADB port</string>
+    <string name="toggle_show_advanced">Show ADB port</string>
     <string name="label_adb_port">Connection Port (ADB Port)</string>
 </resources>
