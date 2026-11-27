@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.PersistableBundle
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,6 +33,12 @@ enum class SimPreset {
     MINIMAL_VOLTE
 }
 
+data class CustomCarrierEntry(
+    val key: String,
+    val type: String = "bool", // "bool", "int", "string"
+    val value: String = "true"
+)
+
 data class SimOverrideConfig(
     val overrideEnabled: Boolean = false,
     // Voice & 5G
@@ -53,7 +61,8 @@ data class SimOverrideConfig(
     val show4gIcon: Boolean = false,
     val allowApnEdit: Boolean = false,
     val protect2g: Boolean = false,
-    val autoDataSwitch: Boolean = false
+    val autoDataSwitch: Boolean = false,
+    val customEntries: List<CustomCarrierEntry> = emptyList()
 )
 
 data class SimLiveStatus(
@@ -78,6 +87,9 @@ object SimConfigStore {
     const val PREFS_NAME = "volte_settings"
     private const val INITIALIZED_KEY = "initialized_fork_v1"
     private const val BOOT_REMINDER_KEY = "boot_reminder_enabled"
+    private const val NEEDS_REAPPLY_AFTER_BOOT_KEY = "needs_reapply_after_boot"
+    private const val AUTO_APPLY_ON_LAUNCH_KEY = "auto_apply_on_launch"
+    private const val AUTO_DISABLE_WIFI_DEBUG_KEY = "auto_disable_wifi_debug"
     private const val LAST_LOG_KEY = "last_execution_log"
 
     fun ensureDefaults(prefs: SharedPreferences) {
@@ -91,6 +103,12 @@ object SimConfigStore {
         if (!prefs.contains(BOOT_REMINDER_KEY)) {
             editor.putBoolean(BOOT_REMINDER_KEY, true)
         }
+        if (!prefs.contains(AUTO_APPLY_ON_LAUNCH_KEY)) {
+            editor.putBoolean(AUTO_APPLY_ON_LAUNCH_KEY, true)
+        }
+        if (!prefs.contains(AUTO_DISABLE_WIFI_DEBUG_KEY)) {
+            editor.putBoolean(AUTO_DISABLE_WIFI_DEBUG_KEY, false)
+        }
         editor.putBoolean(INITIALIZED_KEY, true)
         editor.apply()
     }
@@ -102,6 +120,28 @@ object SimConfigStore {
         prefs.edit().putBoolean(BOOT_REMINDER_KEY, enabled).apply()
     }
 
+    fun isNeedsReapplyAfterBoot(prefs: SharedPreferences): Boolean =
+        prefs.getBoolean(NEEDS_REAPPLY_AFTER_BOOT_KEY, false)
+
+    fun setNeedsReapplyAfterBoot(prefs: SharedPreferences, needed: Boolean, commit: Boolean = false) {
+        val editor = prefs.edit().putBoolean(NEEDS_REAPPLY_AFTER_BOOT_KEY, needed)
+        if (commit) editor.commit() else editor.apply()
+    }
+
+    fun isAutoApplyOnLaunch(prefs: SharedPreferences): Boolean =
+        prefs.getBoolean(AUTO_APPLY_ON_LAUNCH_KEY, true)
+
+    fun setAutoApplyOnLaunch(prefs: SharedPreferences, enabled: Boolean) {
+        prefs.edit().putBoolean(AUTO_APPLY_ON_LAUNCH_KEY, enabled).apply()
+    }
+
+    fun isAutoDisableWifiDebug(prefs: SharedPreferences): Boolean =
+        prefs.getBoolean(AUTO_DISABLE_WIFI_DEBUG_KEY, false)
+
+    fun setAutoDisableWifiDebug(prefs: SharedPreferences, enabled: Boolean) {
+        prefs.edit().putBoolean(AUTO_DISABLE_WIFI_DEBUG_KEY, enabled).apply()
+    }
+
     fun getLastExecutionLog(prefs: SharedPreferences): String =
         prefs.getString(LAST_LOG_KEY, "") ?: ""
 
@@ -111,7 +151,11 @@ object SimConfigStore {
         prefs.edit().putString(LAST_LOG_KEY, "[$timestamp]\n$trimmed").apply()
     }
 
-    fun applyPreset(preset: SimPreset): SimOverrideConfig {
+    fun hasAnyOverrideEnabled(prefs: SharedPreferences): Boolean {
+        return loadSimConfig(prefs, 0).overrideEnabled || loadSimConfig(prefs, 1).overrideEnabled
+    }
+
+    fun applyPreset(preset: SimPreset, existingCustom: List<CustomCarrierEntry> = emptyList()): SimOverrideConfig {
         return when (preset) {
             SimPreset.TRAVEL_BACKUP -> SimOverrideConfig(
                 overrideEnabled = true,
@@ -126,7 +170,8 @@ object SimConfigStore {
                 ssUt = false,
                 smsOverIms = true,
                 showImsStatus = true,
-                autoDataSwitch = true
+                autoDataSwitch = true,
+                customEntries = existingCustom
             )
             SimPreset.UNSUPPORTED_FULL -> SimOverrideConfig(
                 overrideEnabled = true,
@@ -143,7 +188,8 @@ object SimConfigStore {
                 vilte = true,
                 smsOverIms = true,
                 imsCallFeatures = true,
-                showImsStatus = true
+                showImsStatus = true,
+                customEntries = existingCustom
             )
             SimPreset.VOLTE_VONR_ONLY -> SimOverrideConfig(
                 overrideEnabled = true,
@@ -156,7 +202,8 @@ object SimConfigStore {
                 wfcMode = WfcMode.DEFAULT,
                 wfcRoamingMode = WfcMode.DEFAULT,
                 ssUt = false,
-                showImsStatus = true
+                showImsStatus = true,
+                customEntries = existingCustom
             )
             SimPreset.MINIMAL_VOLTE -> SimOverrideConfig(
                 overrideEnabled = true,
@@ -167,9 +214,48 @@ object SimConfigStore {
                 crossSim = false,
                 wfcMode = WfcMode.DEFAULT,
                 wfcRoamingMode = WfcMode.DEFAULT,
-                ssUt = false
+                ssUt = false,
+                customEntries = existingCustom
             )
         }
+    }
+
+    private fun parseCustomEntries(raw: String?): List<CustomCarrierEntry> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val result = mutableListOf<CustomCarrierEntry>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val key = obj.optString("key").trim()
+                if (key.isEmpty()) continue
+                result.add(
+                    CustomCarrierEntry(
+                        key = key,
+                        type = obj.optString("type", "bool").lowercase(),
+                        value = obj.optString("value", "true")
+                    )
+                )
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun serializeCustomEntries(entries: List<CustomCarrierEntry>): String {
+        val arr = JSONArray()
+        for (entry in entries) {
+            val key = entry.key.trim()
+            if (key.isEmpty()) continue
+            arr.put(
+                JSONObject()
+                    .put("key", key)
+                    .put("type", entry.type)
+                    .put("value", entry.value)
+            )
+        }
+        return arr.toString()
     }
 
     fun loadSimConfig(prefs: SharedPreferences, slot: Int): SimOverrideConfig {
@@ -192,7 +278,8 @@ object SimConfigStore {
             show4gIcon = prefs.getBoolean("show_4g_icon_slot_$slot", false),
             allowApnEdit = prefs.getBoolean("allow_apn_slot_$slot", false),
             protect2g = prefs.getBoolean("protect_2g_slot_$slot", false),
-            autoDataSwitch = prefs.getBoolean("auto_data_switch_slot_$slot", false)
+            autoDataSwitch = prefs.getBoolean("auto_data_switch_slot_$slot", false),
+            customEntries = parseCustomEntries(prefs.getString("custom_entries_slot_$slot", null))
         )
     }
 
@@ -223,11 +310,12 @@ object SimConfigStore {
             .putBoolean("allow_apn_slot_$slot", config.allowApnEdit)
             .putBoolean("protect_2g_slot_$slot", config.protect2g)
             .putBoolean("auto_data_switch_slot_$slot", config.autoDataSwitch)
+            .putString("custom_entries_slot_$slot", serializeCustomEntries(config.customEntries))
     }
 
     /**
      * Non-destructive CarrierConfig bundle: only enabled toggles (or explicit WFC modes)
-     * are populated so disabled features preserve the carrier's stock Pixel config.
+     * and custom entries are populated so disabled features preserve the carrier's stock Pixel config.
      */
     fun buildCarrierConfigBundle(config: SimOverrideConfig): PersistableBundle {
         val bundle = PersistableBundle()
@@ -334,7 +422,125 @@ object SimConfigStore {
             bundle.putBoolean("carrier_default_2g_protection_enabled_bool", true)
         }
 
+        for (entry in config.customEntries) {
+            val key = entry.key.trim()
+            if (key.isEmpty()) continue
+            when (entry.type.lowercase()) {
+                "bool" -> entry.value.trim().lowercase().toBooleanStrictOrNull()?.let { bundle.putBoolean(key, it) }
+                "int" -> entry.value.trim().toIntOrNull()?.let { bundle.putInt(key, it) }
+                else -> bundle.putString(key, entry.value)
+            }
+        }
+
         return bundle
+    }
+
+    @Suppress("DEPRECATION")
+    fun describeActiveOverrides(config: SimOverrideConfig): List<Pair<String, String>> {
+        if (!config.overrideEnabled) return emptyList()
+        val bundle = buildCarrierConfigBundle(config)
+        return bundle.keySet().sorted().map { key ->
+            val v = bundle.get(key)
+            val str = when (v) {
+                is IntArray -> v.joinToString(prefix = "[", postfix = "]")
+                else -> v?.toString() ?: "null"
+            }
+            key to str
+        }
+    }
+
+    fun exportConfigJson(prefs: SharedPreferences): String {
+        val root = JSONObject()
+        root.put("schema", 1)
+        root.put("app", "TensorIMS")
+        root.put("bootReminder", isBootReminderEnabled(prefs))
+        root.put("autoApplyOnLaunch", isAutoApplyOnLaunch(prefs))
+        root.put("autoDisableWifiDebug", isAutoDisableWifiDebug(prefs))
+        val slots = JSONObject()
+        for (slot in 0..1) {
+            val c = loadSimConfig(prefs, slot)
+            val customArr = JSONArray()
+            c.customEntries.forEach { entry ->
+                customArr.put(JSONObject().put("key", entry.key).put("type", entry.type).put("value", entry.value))
+            }
+            val sObj = JSONObject()
+                .put("overrideEnabled", c.overrideEnabled)
+                .put("volte", c.volte)
+                .put("vonr", c.vonr)
+                .put("nrSaUnlock", c.nrSaUnlock)
+                .put("vowifi", c.vowifi)
+                .put("wfcRoaming", c.wfcRoaming)
+                .put("crossSim", c.crossSim)
+                .put("wfcMode", c.wfcMode)
+                .put("wfcRoamingMode", c.wfcRoamingMode)
+                .put("ssUt", c.ssUt)
+                .put("carrierAggregation", c.carrierAggregation)
+                .put("vilte", c.vilte)
+                .put("smsOverIms", c.smsOverIms)
+                .put("imsCallFeatures", c.imsCallFeatures)
+                .put("showImsStatus", c.showImsStatus)
+                .put("show4gIcon", c.show4gIcon)
+                .put("allowApnEdit", c.allowApnEdit)
+                .put("protect2g", c.protect2g)
+                .put("autoDataSwitch", c.autoDataSwitch)
+                .put("customEntries", customArr)
+            slots.put("slot_$slot", sObj)
+        }
+        root.put("slots", slots)
+        return root.toString(2)
+    }
+
+    fun importConfigJson(prefs: SharedPreferences, rawJson: String): Result<String> {
+        return try {
+            val root = JSONObject(rawJson.trim())
+            if (root.has("bootReminder")) setBootReminderEnabled(prefs, root.getBoolean("bootReminder"))
+            if (root.has("autoApplyOnLaunch")) setAutoApplyOnLaunch(prefs, root.getBoolean("autoApplyOnLaunch"))
+            if (root.has("autoDisableWifiDebug")) setAutoDisableWifiDebug(prefs, root.getBoolean("autoDisableWifiDebug"))
+
+            val slots = root.optJSONObject("slots") ?: return Result.failure(IllegalArgumentException("Missing 'slots' object"))
+            var importedCount = 0
+            for (slot in 0..1) {
+                val sObj = slots.optJSONObject("slot_$slot") ?: continue
+                val customList = mutableListOf<CustomCarrierEntry>()
+                val customArr = sObj.optJSONArray("customEntries")
+                if (customArr != null) {
+                    for (i in 0 until customArr.length()) {
+                        val item = customArr.optJSONObject(i) ?: continue
+                        val k = item.optString("key").trim()
+                        if (k.isNotEmpty()) {
+                            customList.add(CustomCarrierEntry(k, item.optString("type", "bool"), item.optString("value", "true")))
+                        }
+                    }
+                }
+                val cfg = SimOverrideConfig(
+                    overrideEnabled = sObj.optBoolean("overrideEnabled", false),
+                    volte = sObj.optBoolean("volte", true),
+                    vonr = sObj.optBoolean("vonr", false),
+                    nrSaUnlock = sObj.optBoolean("nrSaUnlock", false),
+                    vowifi = sObj.optBoolean("vowifi", true),
+                    wfcRoaming = sObj.optBoolean("wfcRoaming", true),
+                    crossSim = sObj.optBoolean("crossSim", true),
+                    wfcMode = sObj.optInt("wfcMode", WfcMode.DEFAULT),
+                    wfcRoamingMode = sObj.optInt("wfcRoamingMode", WfcMode.DEFAULT),
+                    ssUt = sObj.optBoolean("ssUt", false),
+                    carrierAggregation = sObj.optBoolean("carrierAggregation", false),
+                    vilte = sObj.optBoolean("vilte", false),
+                    smsOverIms = sObj.optBoolean("smsOverIms", false),
+                    imsCallFeatures = sObj.optBoolean("imsCallFeatures", false),
+                    showImsStatus = sObj.optBoolean("showImsStatus", false),
+                    show4gIcon = sObj.optBoolean("show4gIcon", false),
+                    allowApnEdit = sObj.optBoolean("allowApnEdit", false),
+                    protect2g = sObj.optBoolean("protect2g", false),
+                    autoDataSwitch = sObj.optBoolean("autoDataSwitch", false),
+                    customEntries = customList
+                )
+                saveSimConfig(prefs, slot, cfg, commit = true)
+                importedCount++
+            }
+            Result.success("Imported configuration for $importedCount SIM slot(s)")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun saveLiveStatus(context: Context, status: SimLiveStatus) {

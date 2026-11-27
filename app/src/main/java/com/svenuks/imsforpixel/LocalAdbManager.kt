@@ -1,6 +1,9 @@
 package com.svenuks.imsforpixel
 
+import android.content.ComponentName
 import android.content.Context
+import android.os.Build
+import android.service.quicksettings.TileService
 import android.util.Log
 import com.flyfishxu.kadb.Kadb
 import com.flyfishxu.kadb.cert.KadbCert
@@ -99,23 +102,44 @@ object LocalAdbManager {
     }
 
     fun runInstrumentation(context: Context, port: Int, action: String, targetSlot: Int): Result<String> {
+        val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
         return try {
             Kadb.create("127.0.0.1", port, 60000, 60000).use { kadb ->
                 val cmd = "am instrument -w -e action $action -e target_slot $targetSlot ${context.packageName}/com.svenuks.imsforpixel.BrokerInstrumentation"
                 val response = kadb.shell(cmd)
-                val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
                 val logBody = "$ $cmd\nexit=${response.exitCode}\n${response.output}"
                 SimConfigStore.setLastExecutionLog(prefs, logBody)
                 if (response.exitCode == 0) {
+                    if (action == "apply") {
+                        SimConfigStore.setNeedsReapplyAfterBoot(prefs, false, commit = true)
+                        if (SimConfigStore.isAutoDisableWifiDebug(prefs)) {
+                            try {
+                                kadb.shell("settings put global adb_wifi_enabled 0")
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    requestTileUpdate(context)
                     Result.success(response.output)
                 } else {
                     Result.failure(Exception("Exit code ${response.exitCode}: ${response.output}"))
                 }
             }
         } catch (e: Exception) {
-            val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
             SimConfigStore.setLastExecutionLog(prefs, "action=$action slot=$targetSlot failed: ${e.message}")
             Result.failure(e)
+        }
+    }
+
+    fun requestTileUpdate(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                TileService.requestListeningState(
+                    context,
+                    ComponentName(context, TensorImsTileService::class.java)
+                )
+            } catch (_: Exception) {
+            }
         }
     }
 }

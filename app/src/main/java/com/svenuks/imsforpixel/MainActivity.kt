@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -17,6 +20,7 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -58,6 +62,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MainActivity : ComponentActivity() {
 
     companion object {
+        const val EXTRA_AUTO_APPLY = "extra_auto_apply"
+        const val EXTRA_START_WATCHER_AND_OPEN_DEBUG = "extra_start_watcher_open_debug"
+        const val EXTRA_OPEN_TAB = "extra_open_tab"
+
         @JvmStatic
         var pairingPort: Int? = null
         var onAuthStatusChanged: (() -> Unit)? = null
@@ -69,6 +77,9 @@ class MainActivity : ComponentActivity() {
 
     private var pairingReceiver: BroadcastReceiver? = null
     private var showPairingOnPermissionGrant = false
+    private val launchFlagsSignal = mutableStateOf(0L)
+    private var pendingAutoApply by mutableStateOf(false)
+    private var pendingTab by mutableStateOf<String?>(null)
 
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -90,12 +101,14 @@ class MainActivity : ComponentActivity() {
         try {
             HiddenApiBypass.addHiddenApiExemptions("L")
         } catch (e: Exception) {
-            Log.e("ImsForPixelPlus", "Failed to apply HiddenApiBypass exemptions", e)
+            Log.e("TensorIMS", "Failed to apply HiddenApiBypass exemptions", e)
         }
 
         LocalAdbManager.initCertStore(this)
         val prefs = getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
         SimConfigStore.ensureDefaults(prefs)
+        registerDynamicShortcuts()
+        handleIntentExtras(intent)
 
         val filter = IntentFilter(actionPair)
         pairingReceiver = object : BroadcastReceiver() {
@@ -125,8 +138,79 @@ class MainActivity : ComponentActivity() {
         setContent {
             ImsForPixelTheme {
                 val recheckSignal = remember { mutableStateOf(System.currentTimeMillis()) }
-                MainAppShell(recheckSignal = recheckSignal)
+                MainAppShell(
+                    recheckSignal = recheckSignal,
+                    launchFlagsSignal = launchFlagsSignal.value,
+                    consumeAutoApply = {
+                        val v = pendingAutoApply
+                        pendingAutoApply = false
+                        v
+                    },
+                    consumeRequestedTab = {
+                        val t = pendingTab
+                        pendingTab = null
+                        t
+                    }
+                )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntentExtras(intent)
+    }
+
+    private fun handleIntentExtras(intent: Intent?) {
+        if (intent == null) return
+        if (intent.getBooleanExtra(EXTRA_START_WATCHER_AND_OPEN_DEBUG, false)) {
+            AutoApplyService.startWatcher(this)
+            Toast.makeText(this, getString(R.string.toast_watcher_started), Toast.LENGTH_SHORT).show()
+            try {
+                startActivity(Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"))
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                } catch (_: Exception) {
+                }
+            }
+        }
+        if (intent.getBooleanExtra(EXTRA_AUTO_APPLY, false)) {
+            pendingAutoApply = true
+        }
+        intent.getStringExtra(EXTRA_OPEN_TAB)?.let { tab ->
+            pendingTab = tab
+        }
+        launchFlagsSignal.value = System.currentTimeMillis()
+    }
+
+    private fun registerDynamicShortcuts() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
+        try {
+            val shortcutManager = getSystemService(ShortcutManager::class.java) ?: return
+            val quickReapplyIntent = Intent(this, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                putExtra(EXTRA_AUTO_APPLY, true)
+            }
+            val diagIntent = Intent(this, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                putExtra(EXTRA_OPEN_TAB, "diagnostics")
+            }
+            val s1 = ShortcutInfo.Builder(this, "quick_reapply")
+                .setShortLabel(getString(R.string.shortcut_quick_reapply_short))
+                .setLongLabel(getString(R.string.shortcut_quick_reapply_long))
+                .setIcon(Icon.createWithResource(this, R.drawable.ic_tile_ims))
+                .setIntent(quickReapplyIntent)
+                .build()
+            val s2 = ShortcutInfo.Builder(this, "open_diagnostics")
+                .setShortLabel(getString(R.string.nav_diagnostics))
+                .setLongLabel(getString(R.string.shortcut_diag_long))
+                .setIcon(Icon.createWithResource(this, R.drawable.ic_tile_ims))
+                .setIntent(diagIntent)
+                .build()
+            shortcutManager.dynamicShortcuts = listOf(s1, s2)
+        } catch (_: Exception) {
         }
     }
 
@@ -171,7 +255,7 @@ class MainActivity : ComponentActivity() {
             getString(R.string.notification_config_cleared)
         }
         val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_tile_ims)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -212,7 +296,7 @@ class MainActivity : ComponentActivity() {
         ).addRemoteInput(remoteInput).build()
 
         val notification = NotificationCompat.Builder(this, "pairing_channel")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_tile_ims)
             .setContentTitle(getString(R.string.notification_channel_pairing))
             .setContentText(getString(R.string.notification_pairing_prompt))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -225,7 +309,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showPairingStatusNotification(text: String) {
         val notification = NotificationCompat.Builder(this, "pairing_channel")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_tile_ims)
             .setContentTitle(getString(R.string.notification_channel_pairing))
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -278,9 +362,15 @@ private enum class AppDestination {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppShell(recheckSignal: MutableState<Long>) {
+fun MainAppShell(
+    recheckSignal: MutableState<Long>,
+    launchFlagsSignal: Long,
+    consumeAutoApply: () -> Boolean,
+    consumeRequestedTab: () -> String?
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE) }
 
     var currentTab by remember { mutableStateOf(AppDestination.HOME) }
     var selectedSimSlot by remember { mutableStateOf(0) }
@@ -288,12 +378,23 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
     var isAuthorized by remember { mutableStateOf(false) }
     var isWifiConnected by remember { mutableStateOf(false) }
     var isApplying by remember { mutableStateOf(false) }
+    var needsReapplyAfterBoot by remember { mutableStateOf(SimConfigStore.isNeedsReapplyAfterBoot(prefs)) }
     val isInstrumenting = remember { AtomicBoolean(false) }
+    var autoReapplyAttempted by remember { mutableStateOf(false) }
 
     var status0 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 0)) }
     var status1 by remember { mutableStateOf(SimConfigStore.loadLiveStatus(context, 1)) }
 
-    // Periodic status file reload + callbacks
+    LaunchedEffect(launchFlagsSignal) {
+        when (consumeRequestedTab()) {
+            "diagnostics" -> currentTab = AppDestination.DIAGNOSTICS
+            "configure" -> currentTab = AppDestination.CONFIGURE
+        }
+        if (consumeAutoApply()) {
+            autoReapplyAttempted = false
+        }
+    }
+
     LaunchedEffect(Unit) {
         MainActivity.onAuthStatusChanged = {
             recheckSignal.value = System.currentTimeMillis()
@@ -313,9 +414,9 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
     LaunchedEffect(recheckSignal.value) {
         status0 = SimConfigStore.loadLiveStatus(context, 0)
         status1 = SimConfigStore.loadLiveStatus(context, 1)
+        needsReapplyAfterBoot = SimConfigStore.isNeedsReapplyAfterBoot(prefs)
     }
 
-    // Track Wi-Fi status
     DisposableEffect(Unit) {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
@@ -337,7 +438,6 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
         }
     }
 
-    // mDNS Wireless Debugging discovery
     val nsdManager = remember { context.getSystemService(Context.NSD_SERVICE) as NsdManager }
     DisposableEffect(Unit) {
         val connectListener = object : NsdManager.DiscoveryListener {
@@ -384,7 +484,41 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
         }
     }
 
-    // Background Kadb authorization check + IMS polling
+    fun runAction(action: String, targetSlot: Int) {
+        val port = portInput.toIntOrNull()
+        if (port == null || port !in 1..65535) {
+            Toast.makeText(context, context.getString(R.string.toast_enable_wireless_debugging), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (action == "apply" && targetSlot == -1 && !SimConfigStore.hasAnyOverrideEnabled(prefs)) {
+            Toast.makeText(context, context.getString(R.string.toast_no_sim_override_enabled), Toast.LENGTH_LONG).show()
+            return
+        }
+
+        isApplying = true
+        isInstrumenting.set(true)
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                LocalAdbManager.runInstrumentation(context, port, action, targetSlot)
+            }
+            isApplying = false
+            isInstrumenting.set(false)
+            result.fold(
+                onSuccess = {
+                    if (action == "fix_apn") {
+                        Toast.makeText(context, context.getString(R.string.toast_apn_fixed), Toast.LENGTH_SHORT).show()
+                    }
+                    MainActivity.onInstrumentDone?.invoke(action, true)
+                },
+                onFailure = { error ->
+                    val resId = if (action == "clear") R.string.toast_restore_failed else R.string.toast_activation_failed
+                    Toast.makeText(context, context.getString(resId, error.message ?: ""), Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
     LaunchedEffect(portInput) {
         val port = portInput.toIntOrNull()
         if (port == null || port !in 1..65535) {
@@ -417,43 +551,14 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
         }
     }
 
-    fun runAction(action: String, targetSlot: Int) {
-        val port = portInput.toIntOrNull()
-        if (port == null || port !in 1..65535) {
-            Toast.makeText(context, context.getString(R.string.toast_enable_wireless_debugging), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val prefs = context.getSharedPreferences(SimConfigStore.PREFS_NAME, Context.MODE_PRIVATE)
-        if (action == "apply" && targetSlot == -1) {
-            val s0Enabled = SimConfigStore.loadSimConfig(prefs, 0).overrideEnabled
-            val s1Enabled = SimConfigStore.loadSimConfig(prefs, 1).overrideEnabled
-            if (!s0Enabled && !s1Enabled) {
-                Toast.makeText(context, context.getString(R.string.toast_no_sim_override_enabled), Toast.LENGTH_LONG).show()
-                return
-            }
-        }
-
-        isApplying = true
-        isInstrumenting.set(true)
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                LocalAdbManager.runInstrumentation(context, port, action, targetSlot)
-            }
-            isApplying = false
-            isInstrumenting.set(false)
-            result.fold(
-                onSuccess = {
-                    if (action == "fix_apn") {
-                        Toast.makeText(context, context.getString(R.string.toast_apn_fixed), Toast.LENGTH_SHORT).show()
-                    }
-                    MainActivity.onInstrumentDone?.invoke(action, true)
-                },
-                onFailure = { error ->
-                    val resId = if (action == "clear") R.string.toast_restore_failed else R.string.toast_activation_failed
-                    Toast.makeText(context, context.getString(resId, error.message ?: ""), Toast.LENGTH_LONG).show()
-                }
-            )
+    // Auto-reapply on launch if device rebooted and Wireless ADB is authorized
+    LaunchedEffect(isAuthorized, needsReapplyAfterBoot) {
+        if (isAuthorized && needsReapplyAfterBoot && !autoReapplyAttempted &&
+            SimConfigStore.isAutoApplyOnLaunch(prefs) && SimConfigStore.hasAnyOverrideEnabled(prefs) && !isApplying
+        ) {
+            autoReapplyAttempted = true
+            Toast.makeText(context, context.getString(R.string.toast_auto_reapplying), Toast.LENGTH_SHORT).show()
+            runAction("apply", -1)
         }
     }
 
@@ -515,6 +620,7 @@ fun MainAppShell(recheckSignal: MutableState<Long>) {
                     status1 = status1,
                     isWifiConnected = isWifiConnected,
                     isAuthorized = isAuthorized,
+                    needsReapplyAfterBoot = needsReapplyAfterBoot,
                     portInput = portInput,
                     onPortInputChange = { portInput = it },
                     isApplying = isApplying,

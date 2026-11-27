@@ -8,6 +8,25 @@
     <string name="nav_configure">Configure</string>
     <string name="nav_diagnostics">Diagnostics</string>
 
+    <!-- Dynamic Launcher Shortcuts -->
+    <string name="shortcut_quick_reapply_short">Quick Re-apply</string>
+    <string name="shortcut_quick_reapply_long">Re-apply saved TensorIMS overrides</string>
+    <string name="shortcut_diag_long">Open IMS &amp; Backup Calling diagnostics</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_subtitle_reapply">Tap to Re-apply</string>
+    <string name="tile_subtitle_ready">Ready</string>
+    <string name="tile_subtitle_setup">Tap to Setup</string>
+
+    <!-- Auto-Apply Foreground Service -->
+    <string name="notification_channel_auto_apply">Auto-Apply Watcher</string>
+    <string name="auto_apply_watching_title">TensorIMS · Waiting for Wireless Debugging</string>
+    <string name="auto_apply_watching_body">Toggle Wireless Debugging ON — overrides will apply automatically.</string>
+    <string name="auto_apply_timeout_title">TensorIMS · Auto-Apply timed out</string>
+    <string name="auto_apply_timeout_body">Wireless Debugging was not enabled within 90 seconds. Tap to open TensorIMS.</string>
+    <string name="auto_apply_no_sim_title">TensorIMS · No SIM override enabled</string>
+    <string name="auto_apply_no_sim_body">Open Configure and enable Override Carrier Config on a SIM first.</string>
+
     <!-- Notification Strings -->
     <string name="notification_channel_ims_status">IMS Activation Status</string>
     <string name="notification_title_volte_success">✅ IMS configuration applied</string>
@@ -21,7 +40,9 @@
 
     <string name="notification_channel_boot">Reboot Reminder</string>
     <string name="notification_boot_title">TensorIMS · Re-apply needed</string>
-    <string name="notification_boot_body">Android cleared temporary IMS overrides on reboot. Tap to re-apply.</string>
+    <string name="notification_boot_body">Android cleared temporary IMS overrides on reboot. Use Quick Re-Apply or enable Wireless Debug.</string>
+    <string name="notification_action_quick_reapply">Quick Re-Apply</string>
+    <string name="notification_action_enable_debug">Auto-Apply Watcher</string>
 
     <string name="notification_permission_required">Notification permission required to enter pairing code from notification shade</string>
     <string name="notification_channel_pairing">Wireless Debugging Pairing</string>
@@ -46,19 +67,27 @@
     <string name="toast_no_sim_override_enabled">Enable "Override Carrier Config" on at least one SIM first, or tap Apply on a specific SIM</string>
     <string name="toast_preset_applied">Loaded preset: %1$s (tap Apply to write)</string>
     <string name="toast_report_copied">Diagnostic report copied to clipboard</string>
+    <string name="toast_json_exported">Profile JSON copied to clipboard</string>
     <string name="toast_apn_fixed">APN conflict cleaned up and IMS refreshed</string>
     <string name="toast_shortcut_unavailable">System screen unavailable on this build</string>
+    <string name="toast_watcher_started">Auto-Apply Watcher listening — turn Wireless Debugging ON</string>
+    <string name="toast_auto_reapplying">Reboot detected — auto-reapplying saved overrides...</string>
 
     <!-- Dashboard -->
     <string name="adb_banner_ready">Wireless ADB Ready · Port %1$s</string>
-    <string name="adb_banner_unpaired">Wireless ADB Detected (Port %1$s) · Pairing Required</string>
-    <string name="adb_banner_disconnected">Wireless Debugging Not Connected</string>
-    <string name="adb_wifi_on">Wi-Fi connected · Tap to expand setup or manual port</string>
+    <string name="adb_banner_unpaired">Wireless ADB Detected (Port %1$s) · Pair Once</string>
+    <string name="adb_banner_disconnected">Wireless ADB Not Connected</string>
+    <string name="adb_pill_manage">Manage</string>
+    <string name="adb_pill_connect">Connect</string>
+    <string name="adb_sheet_title">Wireless Debugging Setup</string>
+    <string name="adb_sheet_wifi_ok">Wi-Fi is connected</string>
     <string name="adb_wifi_off">Connect to Wi-Fi to enable Wireless Debugging</string>
-    <string name="adb_setup_hint">1. Connect to Wi-Fi  2. Tap below and enable Wireless Debugging  3. Tap "Pair device with pairing code" and enter the 6-digit code in the notification.</string>
-    <string name="dashboard_global_title">Batch Actions</string>
-    <string name="dashboard_global_desc">Only SIMs with Override enabled are modified</string>
-    <string name="dashboard_shortcuts_title">System Shortcuts</string>
+    <string name="adb_setup_hint">1. Ensure Wi-Fi is connected.\n2. Tap Open Wireless Debugging below and toggle Wireless Debugging ON (Auto-Apply Watcher is listening).\n3. First time only: tap "Pair device with pairing code" and enter the 6-digit code in the notification.</string>
+    <string name="reboot_banner_title">Reboot Detected · Overrides Cleared by Android</string>
+    <string name="reboot_banner_desc">Android clears in-memory CarrierConfig overrides on restart. Tap below to re-apply.</string>
+    <string name="btn_quick_reapply">Quick Re-Apply Now</string>
+    <string name="btn_auto_apply_watcher">Start Auto-Apply &amp; Open Debug</string>
+    <string name="dashboard_tools_title">Quick Tools &amp; Batch</string>
     <string name="shortcut_sim_settings">SIM &amp; Network</string>
     <string name="shortcut_phone_info">Phone Info</string>
     <string name="shortcut_dev_options">Wireless Debug</string>
@@ -66,9 +95,17 @@
     <string name="apn_conflict_title">APN Conflict Blocking Backup Calling</string>
     <string name="apn_conflict_desc">Non-IMS APN includes "ims" (%1$s), causing ePDG auth failure (ERR 24).</string>
     <string name="btn_fix_apn">Fix APN</string>
-    <string name="btn_configure">Configure</string>
+    <string name="btn_configure">Customize</string>
     <string name="btn_apply_short">Apply</string>
     <string name="btn_restore_short">Restore</string>
+
+    <!-- Human Status Summaries -->
+    <string name="summary_backup_active">Backup Calling active over %1$s mobile data</string>
+    <string name="summary_vowifi_and_backup_ready">Wi-Fi Calling active · Ready for Backup Calling over %1$s</string>
+    <string name="summary_vowifi_active">Wi-Fi Calling active</string>
+    <string name="summary_carrier_native">Native carrier defaults active · Untouched</string>
+    <string name="summary_ims_cellular_active">Registered on cellular (%1$s)</string>
+    <string name="summary_ims_not_registered">IMS not registered</string>
 
     <!-- UI Tabs & Headers -->
     <string name="sim_slot_1">SIM 1</string>
@@ -82,18 +119,22 @@
     <string name="btn_refresh_status">Refresh</string>
 
     <!-- Presets & Sections -->
-    <string name="presets_title">Smart Presets</string>
+    <string name="presets_title">1-Tap Smart Presets</string>
     <string name="preset_travel_backup">Travel &amp; Backup</string>
+    <string name="preset_travel_desc">VoLTE + VoWiFi + Backup Calling</string>
     <string name="preset_unsupported_full">Unsupported Full</string>
+    <string name="preset_full_desc">All IMS, 5G SA, VoNR &amp; LTE+</string>
     <string name="preset_volte_vonr">VoLTE + VoNR</string>
+    <string name="preset_volte_vonr_desc">Cellular voice + 5G SA only</string>
     <string name="preset_minimal_volte">Minimal VoLTE</string>
+    <string name="preset_minimal_desc">VoLTE home &amp; roaming only</string>
     <string name="section_voice_5g">Voice &amp; 5G</string>
     <string name="section_wifi_backup">Wi-Fi &amp; Backup Calling</string>
 
     <!-- Master Per-SIM Override -->
     <string name="toggle_override_sim_title">Override Carrier Config for this SIM</string>
     <string name="toggle_override_sim_desc">When OFF, this SIM keeps native carrier defaults completely untouched</string>
-    <string name="notice_sim_untouched">This SIM is untouched (native carrier bundle active). Enable the switch above or pick a preset to customize only this SIM.</string>
+    <string name="notice_sim_untouched_clean">Using native Google Pixel config for %1$s. Toggle the switch above or pick a Smart Preset below to customize only this SIM.</string>
 
     <!-- Toggle Switches -->
     <string name="toggle_volte_title">Enable VoLTE Calling</string>
@@ -119,9 +160,9 @@
     <string name="wfc_mode_cell_pref">Cell Pref</string>
     <string name="wfc_mode_wifi_only">Wi-Fi Only</string>
 
-    <!-- Advanced Settings Section -->
-    <string name="section_advanced_ims_show">Advanced Pixel &amp; Android 17 Settings</string>
-    <string name="section_advanced_ims_hide">Hide Advanced Pixel &amp; Android 17 Settings</string>
+    <!-- Advanced Settings & Custom Keys -->
+    <string name="section_advanced_ims_show">Advanced Pixel &amp; Custom Carrier Keys</string>
+    <string name="section_advanced_ims_hide">Hide Advanced Pixel &amp; Custom Keys</string>
     <string name="toggle_ca_lte_plus_title">Force LTE+ / Carrier Aggregation Icon</string>
     <string name="toggle_ca_lte_plus_desc">Set LTE+ bandwidth threshold to 0 kHz and unhide LTE+ icon</string>
     <string name="toggle_vilte_title">Enable Video Calling (ViLTE)</string>
@@ -140,23 +181,45 @@
     <string name="toggle_protect_2g_desc">Disable insecure 2G fallback by default when supported</string>
     <string name="toggle_auto_data_switch_title">Enable Auto Data Switch Policy</string>
     <string name="toggle_auto_data_switch_desc">Enable system auto-data-switch policy to assist Backup Calling</string>
+    <string name="custom_keys_title">Custom CarrierConfig Keys</string>
+    <string name="custom_keys_desc">Inject any Android CarrierConfigManager key (bool, int, string)</string>
+    <string name="btn_add_key">Add Key</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="dialog_add_key_title">Add CarrierConfig Override</string>
+    <string name="dialog_key_label">CarrierConfig Key</string>
+    <string name="dialog_value_label">Value</string>
 
     <!-- Per-SIM Action Buttons -->
     <string name="btn_apply_carrier">Apply %1$s</string>
     <string name="btn_restore_carrier">Restore %1$s</string>
 
     <!-- Diagnostics -->
+    <string name="readiness_title">Backup Calling Readiness Check</string>
+    <string name="readiness_dual_sim">Dual SIMs active</string>
+    <string name="readiness_carrier_config">Cross-SIM CarrierConfig enabled</string>
+    <string name="readiness_system_cross_sim">System Cross-SIM switch ON</string>
+    <string name="readiness_apn_health">No APN type conflicts</string>
     <string name="diag_btn_refresh">Refresh Live</string>
     <string name="diag_btn_copy_report">Copy Report</string>
-    <string name="diag_preferences_title">App &amp; Reboot Preferences</string>
+    <string name="diag_btn_export_json">Export JSON</string>
+    <string name="diag_btn_import_json">Import JSON</string>
+    <string name="diag_btn_import_confirm">Import</string>
+    <string name="diag_show_keys">Show Active Keys (%1$d)</string>
+    <string name="diag_hide_keys">Hide Active Keys</string>
+    <string name="diag_preferences_title">Reboot Automation &amp; Security</string>
     <string name="toggle_boot_reminder_title">Post-Reboot Reminder Notification</string>
-    <string name="toggle_boot_reminder_desc">Notify after device restart to re-apply temporary IMS overrides</string>
+    <string name="toggle_boot_reminder_desc">Notify after device restart with Quick Re-Apply actions</string>
+    <string name="toggle_auto_apply_launch_title">Auto-Apply on Launch After Reboot</string>
+    <string name="toggle_auto_apply_launch_desc">Automatically re-apply overrides on app open if Wireless ADB is active</string>
+    <string name="toggle_auto_disable_debug_title">Auto-Disable Wireless Debug After Apply</string>
+    <string name="toggle_auto_disable_debug_desc">Turns off Wireless Debugging once applied (recommended for banking apps)</string>
+    <string name="diag_qs_tile_tip">💡 Tip: Add the TensorIMS Quick Settings Tile from your notification shade edit menu for 1-tap post-reboot re-apply.</string>
     <string name="diag_last_log_title">Last Instrumentation Log</string>
     <string name="diag_no_log">No instrumentation commands executed yet.</string>
 
     <!-- Wireless Debugging Card -->
     <string name="btn_open_wireless_debugging">Open Wireless Debugging</string>
-    <string name="btn_activate">Apply Enabled SIMs</string>
+    <string name="btn_activate">Apply Enabled</string>
     <string name="btn_restore">Restore All</string>
     <string name="label_adb_port">Connection Port (ADB Port)</string>
 </resources>

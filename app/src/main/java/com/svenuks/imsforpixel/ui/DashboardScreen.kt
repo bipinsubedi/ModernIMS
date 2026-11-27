@@ -5,12 +5,13 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,8 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.svenuks.imsforpixel.AutoApplyService
 import com.svenuks.imsforpixel.MainActivity
 import com.svenuks.imsforpixel.R
 import com.svenuks.imsforpixel.SimConfigStore
@@ -49,12 +50,14 @@ import com.svenuks.imsforpixel.ui.theme.StatusBlue
 import com.svenuks.imsforpixel.ui.theme.StatusGreen
 import com.svenuks.imsforpixel.ui.theme.StatusRed
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     status0: SimLiveStatus,
     status1: SimLiveStatus,
     isWifiConnected: Boolean,
     isAuthorized: Boolean,
+    needsReapplyAfterBoot: Boolean,
     portInput: String,
     onPortInputChange: (String) -> Unit,
     isApplying: Boolean,
@@ -67,6 +70,7 @@ fun DashboardScreen(
     onRefreshStatus: () -> Unit
 ) {
     val context = LocalContext.current
+    var showAdbSheet by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -75,19 +79,44 @@ fun DashboardScreen(
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 1-line compact Wireless ADB pill (tap opens clean modal sheet)
         item {
-            AdbConnectionBanner(
+            CompactAdbPill(
                 isWifiConnected = isWifiConnected,
                 isAuthorized = isAuthorized,
                 portInput = portInput,
-                onPortInputChange = onPortInputChange
+                onClick = { showAdbSheet = true }
             )
         }
 
+        // Reboot Quick Re-Apply banner (only shown after reboot when overrides were active)
+        if (needsReapplyAfterBoot) {
+            item {
+                RebootReapplyBanner(
+                    isAuthorized = isAuthorized,
+                    isApplying = isApplying,
+                    portInput = portInput,
+                    onQuickApply = onApplyAllEnabled,
+                    onStartWatcherAndOpenDebug = {
+                        val port = portInput.toIntOrNull() ?: -1
+                        AutoApplyService.startWatcher(context, port)
+                        Toast.makeText(context, context.getString(R.string.toast_watcher_started), Toast.LENGTH_SHORT).show()
+                        openIntentSafely(
+                            context,
+                            Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
+                            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                        )
+                    }
+                )
+            }
+        }
+
+        // Dual-SIM Hero Cards
         item {
             SimHeroCard(
                 slotIndex = 0,
                 status = status0,
+                otherCarrierName = status1.carrierName,
                 isApplying = isApplying,
                 onConfigure = { onConfigureSlot(0) },
                 onApply = { onApplySlot(0) },
@@ -100,6 +129,7 @@ fun DashboardScreen(
             SimHeroCard(
                 slotIndex = 1,
                 status = status1,
+                otherCarrierName = status0.carrierName,
                 isApplying = isApplying,
                 onConfigure = { onConfigureSlot(1) },
                 onApply = { onApplySlot(1) },
@@ -108,219 +138,238 @@ fun DashboardScreen(
             )
         }
 
+        // Compact Batch & System Tools Strip
         item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-            ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.dashboard_global_title),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.dashboard_tools_title),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ActionChipTile(
+                        label = stringResource(R.string.btn_activate),
+                        icon = Icons.Default.PlayArrow,
+                        tint = MaterialTheme.colorScheme.primary,
+                        enabled = !isApplying,
+                        onClick = onApplyAllEnabled
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.btn_restore),
+                        icon = Icons.Default.Delete,
+                        tint = StatusRed,
+                        enabled = !isApplying,
+                        onClick = onRestoreAll
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.btn_refresh_status),
+                        icon = Icons.Default.Refresh,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        enabled = !isApplying,
+                        onClick = onRefreshStatus
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.shortcut_sim_settings),
+                        icon = Icons.Default.Settings,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        onClick = { openIntentSafely(context, Intent("android.settings.WIRELESS_SETTINGS"), Intent(Settings.ACTION_SETTINGS)) }
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.shortcut_phone_info),
+                        icon = Icons.Default.Phone,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        onClick = { openRadioInfo(context) }
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.shortcut_dev_options),
+                        icon = Icons.Default.Build,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        onClick = {
+                            openIntentSafely(
+                                context,
+                                Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
+                                Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
                             )
-                            Text(
-                                text = stringResource(R.string.dashboard_global_desc),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
-                        IconButton(onClick = onRefreshStatus, enabled = !isApplying) {
-                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.btn_refresh_status))
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onApplyAllEnabled,
-                            enabled = !isApplying,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isApplying) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.btn_activate), fontSize = 12.sp)
-                            }
-                        }
-                        OutlinedButton(
-                            onClick = onRestoreAll,
-                            enabled = !isApplying,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusRed),
-                            border = BorderStroke(1.dp, StatusRed.copy(alpha = 0.5f))
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.btn_restore), fontSize = 12.sp)
-                        }
-                    }
+                    )
+                    ActionChipTile(
+                        label = stringResource(R.string.shortcut_wifi_settings),
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        onClick = { openIntentSafely(context, Intent(Settings.ACTION_WIFI_SETTINGS), Intent(Settings.ACTION_SETTINGS)) }
+                    )
                 }
             }
         }
+    }
 
-        item {
-            Text(
-                text = stringResource(R.string.dashboard_shortcuts_title),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-            )
-        }
+    if (showAdbSheet) {
+        ModalBottomSheet(onDismissRequest = { showAdbSheet = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.adb_sheet_title),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = if (isWifiConnected) stringResource(R.string.adb_sheet_wifi_ok) else stringResource(R.string.adb_wifi_off),
+                    fontSize = 12.sp,
+                    color = if (isWifiConnected) StatusGreen else StatusRed
+                )
+                Text(
+                    text = stringResource(R.string.adb_setup_hint),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 17.sp
+                )
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ShortcutTile(
-                        title = stringResource(R.string.shortcut_sim_settings),
-                        icon = Icons.Default.Settings,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        openIntentSafely(context, Intent("android.settings.WIRELESS_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
-                    }
-                    ShortcutTile(
-                        title = stringResource(R.string.shortcut_phone_info),
-                        icon = Icons.Default.Phone,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        openRadioInfo(context)
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ShortcutTile(
-                        title = stringResource(R.string.shortcut_dev_options),
-                        icon = Icons.Default.Build,
-                        modifier = Modifier.weight(1f)
-                    ) {
+                Button(
+                    onClick = {
+                        (context as? MainActivity)?.requestNotificationPermissionAndShow()
+                        val port = portInput.toIntOrNull() ?: -1
+                        AutoApplyService.startWatcher(context, port)
                         openIntentSafely(
                             context,
                             Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
                             Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
                         )
-                    }
-                    ShortcutTile(
-                        title = stringResource(R.string.shortcut_wifi_settings),
-                        icon = Icons.AutoMirrored.Filled.ArrowForward,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        openIntentSafely(context, Intent(Settings.ACTION_WIFI_SETTINGS), Intent(Settings.ACTION_SETTINGS))
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.btn_open_wireless_debugging))
                 }
+
+                OutlinedTextField(
+                    value = portInput,
+                    onValueChange = onPortInputChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.label_adb_port), fontSize = 12.sp) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun AdbConnectionBanner(
+private fun CompactAdbPill(
     isWifiConnected: Boolean,
     isAuthorized: Boolean,
     portInput: String,
-    onPortInputChange: (String) -> Unit
+    onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    var expanded by remember(isAuthorized) { mutableStateOf(!isAuthorized) }
-
     val statusColor = when {
         isAuthorized -> StatusGreen
         portInput.isNotEmpty() -> StatusAmber
         else -> StatusRed
     }
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.12f)),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = statusColor.copy(alpha = 0.12f),
         border = BorderStroke(1.dp, statusColor.copy(alpha = 0.45f))
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(statusColor)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = when {
-                                isAuthorized -> stringResource(R.string.adb_banner_ready, portInput)
-                                portInput.isNotEmpty() -> stringResource(R.string.adb_banner_unpaired, portInput)
-                                else -> stringResource(R.string.adb_banner_disconnected)
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isWifiConnected) stringResource(R.string.adb_wifi_on) else stringResource(R.string.adb_wifi_off),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(statusColor)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = when {
+                        isAuthorized -> stringResource(R.string.adb_banner_ready, portInput)
+                        portInput.isNotEmpty() -> stringResource(R.string.adb_banner_unpaired, portInput)
+                        !isWifiConnected -> stringResource(R.string.adb_wifi_off)
+                        else -> stringResource(R.string.adb_banner_disconnected)
+                    },
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isAuthorized) stringResource(R.string.adb_pill_manage) else stringResource(R.string.adb_pill_connect),
+                color = statusColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
 
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.adb_setup_hint),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(
-                        onClick = {
-                            (context as? MainActivity)?.requestNotificationPermissionAndShow()
-                            openIntentSafely(
-                                context,
-                                Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
-                                Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
+@Composable
+private fun RebootReapplyBanner(
+    isAuthorized: Boolean,
+    isApplying: Boolean,
+    portInput: String,
+    onQuickApply: () -> Unit,
+    onStartWatcherAndOpenDebug: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = StatusAmber.copy(alpha = 0.14f)),
+        border = BorderStroke(1.dp, StatusAmber.copy(alpha = 0.55f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Notifications, contentDescription = null, tint = StatusAmber, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.reboot_banner_title),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+            Text(
+                text = stringResource(R.string.reboot_banner_desc),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isAuthorized && portInput.isNotEmpty()) {
+                    Button(
+                        onClick = onQuickApply,
+                        enabled = !isApplying,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.btn_open_wireless_debugging), fontSize = 12.sp)
+                        Text(stringResource(R.string.btn_quick_reapply), fontSize = 12.sp)
                     }
-
-                    OutlinedTextField(
-                        value = portInput,
-                        onValueChange = onPortInputChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.label_adb_port), fontSize = 11.sp) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
-                    )
+                } else {
+                    Button(
+                        onClick = onStartWatcherAndOpenDebug,
+                        enabled = !isApplying,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.btn_auto_apply_watcher), fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -331,6 +380,7 @@ private fun AdbConnectionBanner(
 private fun SimHeroCard(
     slotIndex: Int,
     status: SimLiveStatus,
+    otherCarrierName: String,
     isApplying: Boolean,
     onConfigure: () -> Unit,
     onApply: () -> Unit,
@@ -351,19 +401,35 @@ private fun SimHeroCard(
 
     val transportLabel = when (status.imsTransport) {
         "CROSS_SIM" -> "Backup Calling"
-        "IWLAN" -> "VoWiFi (IWLAN)"
+        "IWLAN" -> "VoWiFi"
         "NR" -> "5G VoNR"
         "LTE" -> "VoLTE"
         "NONE" -> "Not Registered"
         else -> status.imsTransport
     }
 
+    val otherLabel = otherCarrierName.ifBlank { "SIM ${if (slotIndex == 0) 2 else 1}" }
+    val humanSummary = when {
+        status.imsRegistered && status.imsTransport == "CROSS_SIM" ->
+            stringResource(R.string.summary_backup_active, otherLabel)
+        status.imsRegistered && status.imsTransport == "IWLAN" && status.crossSimEnabled ->
+            stringResource(R.string.summary_vowifi_and_backup_ready, otherLabel)
+        status.imsRegistered && status.imsTransport == "IWLAN" ->
+            stringResource(R.string.summary_vowifi_active)
+        !status.configApplied && !overrideEnabled ->
+            stringResource(R.string.summary_carrier_native)
+        status.imsRegistered ->
+            stringResource(R.string.summary_ims_cellular_active, transportLabel)
+        else ->
+            stringResource(R.string.summary_ims_not_registered)
+    }
+
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(
             1.dp,
-            if (status.configApplied) StatusGreen.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+            if (status.configApplied) StatusGreen.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
         )
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -401,7 +467,7 @@ private fun SimHeroCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 PillTag(
-                    text = if (status.imsRegistered) "IMS: $transportLabel" else "IMS: Not Registered",
+                    text = if (status.imsRegistered) "IMS: $transportLabel" else "IMS: Off",
                     color = if (status.imsRegistered) {
                         if (status.imsTransport == "CROSS_SIM") StatusBlue else StatusGreen
                     } else StatusRed
@@ -413,6 +479,23 @@ private fun SimHeroCard(
                 PillTag(
                     text = if (status.wfcEnabled) "VoWiFi: ON" else "VoWiFi: OFF",
                     color = if (status.wfcEnabled) StatusGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (status.imsRegistered) Icons.Default.CheckCircle else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = if (status.imsRegistered) StatusGreen else StatusAmber,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = humanSummary,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -433,11 +516,7 @@ private fun SimHeroCard(
                             Icon(Icons.Default.Warning, contentDescription = null, tint = StatusAmber, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text(
-                                    text = stringResource(R.string.apn_conflict_title),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
+                                Text(stringResource(R.string.apn_conflict_title), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Text(
                                     text = stringResource(R.string.apn_conflict_desc, status.apnConflictDetail),
                                     fontSize = 10.sp,
@@ -455,14 +534,15 @@ private fun SimHeroCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = onConfigure,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text(stringResource(R.string.btn_configure), fontSize = 11.sp, maxLines = 1)
+                    Text(stringResource(R.string.btn_configure), fontSize = 12.sp, maxLines = 1)
                 }
                 FilledTonalButton(
                     onClick = onApply,
@@ -470,19 +550,44 @@ private fun SimHeroCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text(stringResource(R.string.btn_apply_short), fontSize = 11.sp, maxLines = 1)
+                    Text(stringResource(R.string.btn_apply_short), fontSize = 12.sp, maxLines = 1)
                 }
-                OutlinedButton(
+                OutlinedIconButton(
                     onClick = onRestore,
                     enabled = !isApplying,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusRed),
-                    border = BorderStroke(1.dp, StatusRed.copy(alpha = 0.4f)),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    border = BorderStroke(1.dp, StatusRed.copy(alpha = 0.45f)),
+                    colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = StatusRed)
                 ) {
-                    Text(stringResource(R.string.btn_restore_short), fontSize = 11.sp, maxLines = 1)
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_restore_short), modifier = Modifier.size(18.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionChipTile(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (enabled) 0.55f else 0.25f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = tint, maxLines = 1)
         }
     }
 }
@@ -503,32 +608,6 @@ fun PillTag(text: String, color: Color) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-@Composable
-private fun ShortcutTile(
-    title: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(title, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
     }
 }
 

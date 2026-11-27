@@ -643,6 +643,9 @@ class BrokerInstrumentation : Instrumentation() {
             resetImsForSub(telephonyManager, target.subId, target.slotIndex)
         }
 
+        if (touchedSlots.isNotEmpty()) {
+            SimConfigStore.setNeedsReapplyAfterBoot(sharedPrefs, false, commit = true)
+        }
         pollStatuses(touchedSlots, isClear = false)
     }
 
@@ -744,7 +747,7 @@ class BrokerInstrumentation : Instrumentation() {
         }
 
         val notification = builder
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_tile_ims)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

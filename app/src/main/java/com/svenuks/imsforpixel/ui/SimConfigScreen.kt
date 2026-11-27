@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -23,14 +25,15 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.svenuks.imsforpixel.CustomCarrierEntry
 import com.svenuks.imsforpixel.R
 import com.svenuks.imsforpixel.SimConfigStore
 import com.svenuks.imsforpixel.SimLiveStatus
@@ -61,11 +64,12 @@ fun SimConfigScreen(
         mutableStateOf(SimConfigStore.loadSimConfig(prefs, selectedSlot))
     }
     var showAdvanced by remember(selectedSlot) { mutableStateOf(false) }
+    var showAddKeyDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedSlot, recheckSignal) {
-        val latestOverride = prefs.getBoolean("override_enabled_slot_$selectedSlot", config.overrideEnabled)
-        if (latestOverride != config.overrideEnabled) {
-            config = config.copy(overrideEnabled = latestOverride)
+        val reloaded = SimConfigStore.loadSimConfig(prefs, selectedSlot)
+        if (reloaded.overrideEnabled != config.overrideEnabled) {
+            config = reloaded
         }
     }
 
@@ -93,7 +97,7 @@ fun SimConfigScreen(
             )
         }
 
-        // Master Override & Live Summary Card
+        // Master Override Card
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -135,14 +139,15 @@ fun SimConfigScreen(
 
                     if (!config.overrideEnabled) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ) {
                             Text(
-                                text = stringResource(R.string.notice_sim_untouched),
-                                fontSize = 11.sp,
+                                text = stringResource(R.string.notice_sim_untouched_clean, carrierLabel),
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(10.dp)
+                                lineHeight = 17.sp,
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
                     }
@@ -150,7 +155,7 @@ fun SimConfigScreen(
             }
         }
 
-        // Smart Presets Row
+        // Smart Presets Row (always accessible — tapping a preset auto-enables override for this SIM)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
@@ -167,130 +172,185 @@ fun SimConfigScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val presets = listOf(
-                        SimPreset.TRAVEL_BACKUP to stringResource(R.string.preset_travel_backup),
-                        SimPreset.UNSUPPORTED_FULL to stringResource(R.string.preset_unsupported_full),
-                        SimPreset.VOLTE_VONR_ONLY to stringResource(R.string.preset_volte_vonr),
-                        SimPreset.MINIMAL_VOLTE to stringResource(R.string.preset_minimal_volte)
+                        Triple(SimPreset.TRAVEL_BACKUP, stringResource(R.string.preset_travel_backup), stringResource(R.string.preset_travel_desc)),
+                        Triple(SimPreset.UNSUPPORTED_FULL, stringResource(R.string.preset_unsupported_full), stringResource(R.string.preset_full_desc)),
+                        Triple(SimPreset.VOLTE_VONR_ONLY, stringResource(R.string.preset_volte_vonr), stringResource(R.string.preset_volte_vonr_desc)),
+                        Triple(SimPreset.MINIMAL_VOLTE, stringResource(R.string.preset_minimal_volte), stringResource(R.string.preset_minimal_desc))
                     )
-                    for ((preset, label) in presets) {
-                        AssistChip(
-                            onClick = {
-                                updateConfig(SimConfigStore.applyPreset(preset))
-                                Toast.makeText(context, context.getString(R.string.toast_preset_applied, label), Toast.LENGTH_SHORT).show()
-                            },
-                            label = { Text(label, fontSize = 12.sp) }
-                        )
+                    for ((preset, label, subtitle) in presets) {
+                        Surface(
+                            modifier = Modifier
+                                .width(156.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    updateConfig(SimConfigStore.applyPreset(preset, config.customEntries))
+                                    Toast.makeText(context, context.getString(R.string.toast_preset_applied, label), Toast.LENGTH_SHORT).show()
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(label, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, lineHeight = 13.sp)
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Voice & 5G Group
-        item {
-            SectionCard(title = stringResource(R.string.section_voice_5g), enabled = config.overrideEnabled) {
-                ToggleRow(stringResource(R.string.toggle_volte_title), stringResource(R.string.toggle_volte_desc), config.volte) {
-                    updateConfig(config.copy(volte = it, overrideEnabled = true))
-                }
-                ToggleRow(stringResource(R.string.toggle_vonr_title), stringResource(R.string.toggle_vonr_desc), config.vonr) {
-                    updateConfig(config.copy(vonr = it, overrideEnabled = true))
-                }
-                ToggleRow(stringResource(R.string.toggle_nr_sa_title), stringResource(R.string.toggle_nr_sa_desc), config.nrSaUnlock) {
-                    updateConfig(config.copy(nrSaUnlock = it, overrideEnabled = true))
+        // Decluttered UI: hide toggle stack until user enables override for this SIM
+        if (config.overrideEnabled) {
+            item {
+                SectionCard(title = stringResource(R.string.section_voice_5g)) {
+                    ToggleRow(stringResource(R.string.toggle_volte_title), stringResource(R.string.toggle_volte_desc), config.volte) {
+                        updateConfig(config.copy(volte = it))
+                    }
+                    ToggleRow(stringResource(R.string.toggle_vonr_title), stringResource(R.string.toggle_vonr_desc), config.vonr) {
+                        updateConfig(config.copy(vonr = it))
+                    }
+                    ToggleRow(stringResource(R.string.toggle_nr_sa_title), stringResource(R.string.toggle_nr_sa_desc), config.nrSaUnlock) {
+                        updateConfig(config.copy(nrSaUnlock = it))
+                    }
                 }
             }
-        }
 
-        // Wi-Fi & Backup Calling Group
-        item {
-            SectionCard(title = stringResource(R.string.section_wifi_backup), enabled = config.overrideEnabled) {
-                ToggleRow(stringResource(R.string.toggle_vowifi_title), stringResource(R.string.toggle_vowifi_desc), config.vowifi) {
-                    updateConfig(config.copy(vowifi = it, overrideEnabled = true))
+            item {
+                SectionCard(title = stringResource(R.string.section_wifi_backup)) {
+                    ToggleRow(stringResource(R.string.toggle_vowifi_title), stringResource(R.string.toggle_vowifi_desc), config.vowifi) {
+                        updateConfig(config.copy(vowifi = it))
+                    }
+                    ToggleRow(stringResource(R.string.toggle_wfc_roaming_title), stringResource(R.string.toggle_wfc_roaming_desc), config.wfcRoaming) {
+                        updateConfig(config.copy(wfcRoaming = it))
+                    }
+                    ToggleRow(stringResource(R.string.toggle_cross_sim_title), stringResource(R.string.toggle_cross_sim_desc), config.crossSim) {
+                        updateConfig(config.copy(crossSim = it))
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    WfcModeSelector(
+                        label = stringResource(R.string.label_wfc_home_mode),
+                        selectedMode = config.wfcMode,
+                        onModeSelected = { updateConfig(config.copy(wfcMode = it)) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    WfcModeSelector(
+                        label = stringResource(R.string.label_wfc_roaming_mode),
+                        selectedMode = config.wfcRoamingMode,
+                        onModeSelected = { updateConfig(config.copy(wfcRoamingMode = it)) }
+                    )
                 }
-                ToggleRow(stringResource(R.string.toggle_wfc_roaming_title), stringResource(R.string.toggle_wfc_roaming_desc), config.wfcRoaming) {
-                    updateConfig(config.copy(wfcRoaming = it, overrideEnabled = true))
-                }
-                ToggleRow(stringResource(R.string.toggle_cross_sim_title), stringResource(R.string.toggle_cross_sim_desc), config.crossSim) {
-                    updateConfig(config.copy(crossSim = it, overrideEnabled = true))
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                WfcModeSelector(
-                    label = stringResource(R.string.label_wfc_home_mode),
-                    selectedMode = config.wfcMode,
-                    onModeSelected = { updateConfig(config.copy(wfcMode = it, overrideEnabled = true)) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                WfcModeSelector(
-                    label = stringResource(R.string.label_wfc_roaming_mode),
-                    selectedMode = config.wfcRoamingMode,
-                    onModeSelected = { updateConfig(config.copy(wfcRoamingMode = it, overrideEnabled = true)) }
-                )
             }
-        }
 
-        // Advanced Carrier & Android 17 Group
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(14.dp)
-                        .alpha(if (config.overrideEnabled) 1f else 0.5f)
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showAdvanced = !showAdvanced },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (showAdvanced) stringResource(R.string.section_advanced_ims_hide) else stringResource(R.string.section_advanced_ims_show),
-                            color = StatusBlue,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                        Icon(
-                            imageVector = if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = StatusBlue
-                        )
-                    }
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAdvanced = !showAdvanced },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (showAdvanced) stringResource(R.string.section_advanced_ims_hide) else stringResource(R.string.section_advanced_ims_show),
+                                color = StatusBlue,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Icon(
+                                imageVector = if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = StatusBlue
+                            )
+                        }
 
-                    AnimatedVisibility(visible = showAdvanced) {
-                        Column(modifier = Modifier.padding(top = 8.dp)) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-                            ToggleRow(stringResource(R.string.toggle_ss_ut_title), stringResource(R.string.toggle_ss_ut_desc), config.ssUt) {
-                                updateConfig(config.copy(ssUt = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_ca_lte_plus_title), stringResource(R.string.toggle_ca_lte_plus_desc), config.carrierAggregation) {
-                                updateConfig(config.copy(carrierAggregation = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_vilte_title), stringResource(R.string.toggle_vilte_desc), config.vilte) {
-                                updateConfig(config.copy(vilte = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_sms_ims_title), stringResource(R.string.toggle_sms_ims_desc), config.smsOverIms) {
-                                updateConfig(config.copy(smsOverIms = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_ims_call_features_title), stringResource(R.string.toggle_ims_call_features_desc), config.imsCallFeatures) {
-                                updateConfig(config.copy(imsCallFeatures = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_show_ims_status_title), stringResource(R.string.toggle_show_ims_status_desc), config.showImsStatus) {
-                                updateConfig(config.copy(showImsStatus = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_show_4g_icon_title), stringResource(R.string.toggle_show_4g_icon_desc), config.show4gIcon) {
-                                updateConfig(config.copy(show4gIcon = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_allow_apn_title), stringResource(R.string.toggle_allow_apn_desc), config.allowApnEdit) {
-                                updateConfig(config.copy(allowApnEdit = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_protect_2g_title), stringResource(R.string.toggle_protect_2g_desc), config.protect2g) {
-                                updateConfig(config.copy(protect2g = it, overrideEnabled = true))
-                            }
-                            ToggleRow(stringResource(R.string.toggle_auto_data_switch_title), stringResource(R.string.toggle_auto_data_switch_desc), config.autoDataSwitch) {
-                                updateConfig(config.copy(autoDataSwitch = it, overrideEnabled = true))
+                        AnimatedVisibility(visible = showAdvanced) {
+                            Column(modifier = Modifier.padding(top = 8.dp)) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                ToggleRow(stringResource(R.string.toggle_ss_ut_title), stringResource(R.string.toggle_ss_ut_desc), config.ssUt) {
+                                    updateConfig(config.copy(ssUt = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_ca_lte_plus_title), stringResource(R.string.toggle_ca_lte_plus_desc), config.carrierAggregation) {
+                                    updateConfig(config.copy(carrierAggregation = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_vilte_title), stringResource(R.string.toggle_vilte_desc), config.vilte) {
+                                    updateConfig(config.copy(vilte = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_sms_ims_title), stringResource(R.string.toggle_sms_ims_desc), config.smsOverIms) {
+                                    updateConfig(config.copy(smsOverIms = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_ims_call_features_title), stringResource(R.string.toggle_ims_call_features_desc), config.imsCallFeatures) {
+                                    updateConfig(config.copy(imsCallFeatures = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_show_ims_status_title), stringResource(R.string.toggle_show_ims_status_desc), config.showImsStatus) {
+                                    updateConfig(config.copy(showImsStatus = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_show_4g_icon_title), stringResource(R.string.toggle_show_4g_icon_desc), config.show4gIcon) {
+                                    updateConfig(config.copy(show4gIcon = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_allow_apn_title), stringResource(R.string.toggle_allow_apn_desc), config.allowApnEdit) {
+                                    updateConfig(config.copy(allowApnEdit = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_protect_2g_title), stringResource(R.string.toggle_protect_2g_desc), config.protect2g) {
+                                    updateConfig(config.copy(protect2g = it))
+                                }
+                                ToggleRow(stringResource(R.string.toggle_auto_data_switch_title), stringResource(R.string.toggle_auto_data_switch_desc), config.autoDataSwitch) {
+                                    updateConfig(config.copy(autoDataSwitch = it))
+                                }
+
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.custom_keys_title), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text(stringResource(R.string.custom_keys_desc), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    FilledTonalButton(onClick = { showAddKeyDialog = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(stringResource(R.string.btn_add_key), fontSize = 11.sp)
+                                    }
+                                }
+
+                                for ((index, entry) in config.customEntries.withIndex()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 6.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(entry.key, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                            Text("${entry.type} = ${entry.value}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val mutable = config.customEntries.toMutableList()
+                                                mutable.removeAt(index)
+                                                updateConfig(config.copy(customEntries = mutable))
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp), tint = StatusRed)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -340,6 +400,84 @@ fun SimConfigScreen(
             }
         }
     }
+
+    if (showAddKeyDialog) {
+        AddCustomKeyDialog(
+            onDismiss = { showAddKeyDialog = false },
+            onAdd = { entry ->
+                val filtered = config.customEntries.filterNot { it.key == entry.key }
+                updateConfig(config.copy(customEntries = filtered + entry, overrideEnabled = true))
+                showAddKeyDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun AddCustomKeyDialog(
+    onDismiss: () -> Unit,
+    onAdd: (CustomCarrierEntry) -> Unit
+) {
+    var keyInput by remember { mutableStateOf("") }
+    var typeInput by remember { mutableStateOf("bool") }
+    var valueInput by remember { mutableStateOf("true") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.dialog_add_key_title), fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    label = { Text(stringResource(R.string.dialog_key_label), fontSize = 11.sp) },
+                    placeholder = { Text("e.g. carrier_volte_available_bool", fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    for (t in listOf("bool", "int", "string")) {
+                        FilterChip(
+                            selected = typeInput == t,
+                            onClick = {
+                                typeInput = t
+                                valueInput = when (t) {
+                                    "bool" -> "true"
+                                    "int" -> "0"
+                                    else -> ""
+                                }
+                            },
+                            label = { Text(t, fontSize = 11.sp) }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = valueInput,
+                    onValueChange = { valueInput = it },
+                    label = { Text(stringResource(R.string.dialog_value_label), fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val trimmed = keyInput.trim()
+                    if (trimmed.isNotEmpty()) {
+                        onAdd(CustomCarrierEntry(trimmed, typeInput, valueInput.trim()))
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.btn_add_key))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.btn_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -386,7 +524,6 @@ private fun SimTabs(
 @Composable
 private fun SectionCard(
     title: String,
-    enabled: Boolean,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -394,11 +531,7 @@ private fun SectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
     ) {
-        Column(
-            modifier = Modifier
-                .padding(14.dp)
-                .alpha(if (enabled) 1f else 0.5f)
-        ) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
